@@ -1,6 +1,7 @@
 {
-  "name": "@edx/frontend-plugin-bulk-rerun",
+  "name": "@cucwd/frontend-plugin-bulk-rerun",
   "version": "0.1.0",
+  "main": "src/index.tsx",
   "description": "Frontend plugin bulk rerun",
   "repository": {
     "type": "git",
@@ -35,25 +36,24 @@
   "bugs": {
     "url": "https://github.com/CUCWD/frontend-plugin-bulk-rerun/issues"
   },
+  "peerDependencies": {
+    "@hookstate/core": "^4.0.2",
+    "@openedx/frontend-plugin-framework": ">=1",
+    "@openedx/paragon": ">=22",
+    "@tanstack/react-query": ">=4",
+    "react": "^18",
+    "react-dom": "^18"
+  },
   "dependencies": {
-    "@edx/brand": "npm:@openedx/brand-openedx@^1.2.2",
-    "@edx/frontend-component-footer": "^14.9.2",
-    "@edx/frontend-component-header": "^8.0.0",
-    "@edx/frontend-platform": "^8.5.1",
-    "@edx/openedx-atlas": "^0.7.0",
-    "@fortawesome/fontawesome-svg-core": "1.2.36",
-    "@fortawesome/free-brands-svg-icons": "5.15.4",
-    "@fortawesome/free-regular-svg-icons": "5.15.4",
-    "@fortawesome/free-solid-svg-icons": "5.15.4",
-    "@fortawesome/react-fontawesome": "0.2.6",
-    "@openedx/paragon": "^23.14.9",
-    "@tanstack/react-query": "^5.90.5",
+    "@edx/frontend-platform": "^8.0.4",
+    "@hookstate/core": "^4.0.2",
+    "@openedx/frontend-plugin-framework": ">=1",
+    "@openedx/paragon": ">=22",
+    "@tanstack/react-query": ">=4",
     "classnames": "^2.5.1",
     "core-js": "3.49.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router": "6.30.3",
-    "react-router-dom": "6.30.3",
+    "react": "^18",
+    "react-dom": "^18",
     "regenerator-runtime": "0.14.1"
   },
   "devDependencies": {
@@ -61,7 +61,7 @@
     "@edx/reactifex": "^2.2.0",
     "@edx/stylelint-config-edx": "^2.3.3",
     "@edx/typescript-config": "^1.1.0",
-    "@openedx/frontend-build": "14.6.3",
+    "@openedx/frontend-build": "^14.6.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
