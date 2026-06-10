@@ -8,6 +8,7 @@ export type ActiveJob = {
   id:        number;
   cfg:       any;
   isDry:     boolean;
+  batchId:   string | null;  // real API batch ID; null means DEMO simulation mode
   createdAt: string;
   createdBy: string;
 };

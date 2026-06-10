@@ -3,6 +3,12 @@
 // because the API expects a flat list, not a nested object keyed by org.
 import { makeKey } from './courseKeys';
 
+const FROM_MODE_TO_API: Record<string, string> = {
+  course:   'individual',
+  program:  'program_rerun',
+  new_org:  'new_org',
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildBatchPayload(cfg: any, isDryRun = false) {
   const {
@@ -17,7 +23,7 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
   } = cfg;
 
   return {
-    mode: fromMode,
+    mode: FROM_MODE_TO_API[fromMode] ?? 'individual',
     is_dry_run: isDryRun,
     target_run: runId,
     courses: rows.map((r: any) => ({

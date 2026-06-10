@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Alert, Spinner, Form, Badge } from '@openedx/paragon';
 
-import { useValidateCourseKeys } from '../../hooks';
+import { useValidateCourseKeys, useSearchEmails } from '../../hooks';
 import { makeKey, validateRunId, detectConflict } from '../../utils/courseKeys';
 import EditableRunCell from './EditableRunCell';
 
@@ -62,15 +62,23 @@ function Lbl({ children, hint }) {
   );
 }
 
-// Toggle row — layout wrapper using Form.Switch for the actual control
+// Toggle row — native checkbox role="switch" to avoid Paragon FormSwitch prop-type warnings
 function Toggle({ id, checked, onChange, label, hint }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid ' + G200 }}>
       <div style={{ paddingRight: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: G900 }}>{label}</div>
-        {hint && <Form.Text muted style={{ display: 'block', marginTop: 2 }}>{hint}</Form.Text>}
+        {hint && <span style={{ display: 'block', fontSize: 12, color: G500, marginTop: 2 }}>{hint}</span>}
       </div>
-      <Form.Switch id={id} checked={checked} onChange={onChange} aria-label={label} />
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        style={{ width: 36, height: 20, accentColor: BRAND, cursor: 'pointer', flexShrink: 0, marginTop: 2 }}
+      />
     </div>
   );
 }
@@ -118,7 +126,9 @@ export default function StepConfigure({
   const cancelRef  = useRef(false);
   const rowsRef    = useRef([]);
 
-  const validateMutation = useValidateCourseKeys();
+  const validateMutation  = useValidateCourseKeys();
+  const searchEmails      = useSearchEmails();
+  const [emailStatus, setEmailStatus] = useState({});
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const effectiveRows = rows.map(r => ({ ...r, run: rowRunOverrides[r.id] ?? runId }));
@@ -132,7 +142,19 @@ export default function StepConfigure({
   const conflicts = effectiveRows.map((r, i) => detectConflict(r, effectiveRows, i, existsSet));
   const nConf = conflicts.filter(Boolean).length;
 
-  const teamInvalid = Object.values(orgRosters).flat().filter(r => r.email && !r.email.includes('@')).length;
+  const teamInvalid = Object.values(orgRosters).flat().filter(m => {
+    if (!m.email) return false;
+    if (!m.email.includes('@')) return true;
+    const s = emailStatus[m.email.trim()];
+    return s === 'not_found';
+  }).length;
+
+  // Emails that have a valid format but haven't resolved yet (checking or no result)
+  const teamChecking = Object.values(orgRosters).flat().filter(m => {
+    if (!m.email || !m.email.includes('@')) return false;
+    const s = emailStatus[m.email.trim()];
+    return s === 'checking' || s === undefined;
+  }).length;
 
   const orgGroups = [...new Set(effectiveRows.map(r => r.org))]
     .sort((a, b) => a.localeCompare(b))
@@ -194,6 +216,45 @@ export default function StepConfigure({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
+  // ── Email account validation (debounced 800 ms) ────────────────────────────
+  const emailSig = JSON.stringify(
+    Object.values(orgRosters).flat().map(m => m.email.trim()).filter(Boolean).sort()
+  );
+  useEffect(() => {
+    const emails = [...new Set(
+      Object.values(orgRosters).flat()
+        .map(m => m.email.trim())
+        .filter(e => e && e.includes('@'))
+    )];
+    if (emails.length === 0) return undefined;
+
+    setEmailStatus(prev => {
+      const next = { ...prev };
+      emails.forEach(e => { next[e] = 'checking'; });
+      return next;
+    });
+
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchEmails.mutateAsync(emails);
+        setEmailStatus(prev => {
+          const next = { ...prev };
+          emails.forEach(e => { next[e] = found.has(e) ? 'found' : 'not_found'; });
+          return next;
+        });
+      } catch (_e) {
+        setEmailStatus(prev => {
+          const next = { ...prev };
+          emails.forEach(e => { next[e] = 'unknown'; });
+          return next;
+        });
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailSig]);
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const newMember = useCallback(() => ({ email: '', studio: 'admin', discussion: 'discussion_admin' }), []);
 
@@ -237,7 +298,7 @@ export default function StepConfigure({
   };
 
   // ── canReview ──────────────────────────────────────────────────────────────
-  const canReview = nConf === 0 && !checking && validated && runIdV.ok && schedOkUI && teamInvalid === 0;
+  const canReview = nConf === 0 && !checking && validated && runIdV.ok && schedOkUI && teamInvalid === 0 && teamChecking === 0;
 
   // ── Tab definitions ────────────────────────────────────────────────────────
   const TABS = [
@@ -599,7 +660,11 @@ export default function StepConfigure({
                       <div style={{ padding: '16px 20px' }}>
                         <Alert variant="info" className="mb-3 py-2">
                           <strong style={{ display: 'block', marginBottom: 2 }}>Course Assignment Roster (CAR)</strong>
-                          {'Add instructors and admins for ' + (orgName || orgCode) + '. Each person will be enrolled across all courses for this organization.'}
+                          {'Add instructors and admins for ' + (orgName || orgCode) + '. Each person will be granted course access roles across all courses for this organization.'}
+                          <div style={{ marginTop: 6, fontSize: 13, color: G700 }}>
+                            <span style={{ fontWeight: 600 }}>Note:</span>
+                            {' Each email must belong to an existing, activated platform account — Studio roles cannot be assigned without one.'}
+                          </div>
                         </Alert>
                         <div style={{ overflowX: 'auto', marginBottom: 10 }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -612,13 +677,26 @@ export default function StepConfigure({
                             </thead>
                             <tbody>
                               {orgRoster.map((member, i) => {
-                                const accountStatus = !member.email ? '-'
-                                  : member.email.includes('@') ? 'Found'
-                                  : 'Not found';
-                                const statusColor = accountStatus === 'Found' ? SUCCESS
-                                  : accountStatus === 'Not found' ? DANGER : G300;
+                                const trimmed = member.email.trim();
+                                const apiStatus = emailStatus[trimmed];
+                                let statusLabel, statusColor, statusIcon;
+                                if (!trimmed) {
+                                  statusLabel = '—'; statusColor = G300; statusIcon = null;
+                                } else if (!trimmed.includes('@')) {
+                                  statusLabel = 'Invalid email'; statusColor = DANGER; statusIcon = '✗';
+                                } else if (apiStatus === 'checking') {
+                                  statusLabel = 'Checking…'; statusColor = G500; statusIcon = null;
+                                } else if (apiStatus === 'found') {
+                                  statusLabel = 'Account found'; statusColor = SUCCESS; statusIcon = '✓';
+                                } else if (apiStatus === 'not_found') {
+                                  statusLabel = 'No account found'; statusColor = DANGER; statusIcon = '✗';
+                                } else if (apiStatus === 'unknown') {
+                                  statusLabel = 'Lookup failed'; statusColor = WARNING; statusIcon = '⚠';
+                                } else {
+                                  statusLabel = 'Pending…'; statusColor = G300; statusIcon = null;
+                                }
                                 return (
-                                  <tr key={i} style={{ borderBottom: '1px solid ' + BORDER }}>
+                                  <tr key={i} style={{ borderBottom: '1px solid ' + BORDER, background: apiStatus === 'not_found' ? DANGER_BG : WHITE }}>
                                     <td style={{ padding: '6px 8px' }}>
                                       <Form.Control
                                         size="sm"
@@ -626,6 +704,7 @@ export default function StepConfigure({
                                         onChange={e => updateOrgRoster(orgCode, i, 'email', e.target.value)}
                                         placeholder="instructor@example.org"
                                         style={{ minWidth: 220 }}
+                                        isInvalid={apiStatus === 'not_found' || (!trimmed.includes('@') && trimmed.length > 0)}
                                       />
                                     </td>
                                     <td style={{ padding: '6px 8px' }}>
@@ -642,8 +721,15 @@ export default function StepConfigure({
                                         <option value="none">None</option>
                                       </Form.Control>
                                     </td>
-                                    <td style={{ padding: '6px 10px' }}>
-                                      <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>{accountStatus}</span>
+                                    <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                                      {apiStatus === 'checking'
+                                        ? <Spinner animation="border" size="sm" style={{ width: 14, height: 14 }} />
+                                        : (
+                                          <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>
+                                            {statusIcon && <span style={{ marginRight: 4 }}>{statusIcon}</span>}
+                                            {statusLabel}
+                                          </span>
+                                        )}
                                     </td>
                                     <td style={{ padding: '6px 8px' }}>
                                       <button onClick={() => removeOrgMember(orgCode, i)} style={{ color: DANGER, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>✕</button>
@@ -711,6 +797,12 @@ export default function StepConfigure({
                 Remove all conflicts
               </Button>
             </>
+          )}
+          {teamChecking > 0 && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: G500 }}>
+              <Spinner animation="border" size="sm" style={{ width: 14, height: 14 }} />
+              {'Validating ' + teamChecking + ' team account' + (teamChecking !== 1 ? 's' : '') + '…'}
+            </span>
           )}
           {teamInvalid > 0 && (
             <span style={{ fontSize: 13, color: DANGER }}>

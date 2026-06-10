@@ -31,7 +31,7 @@ const WIZARD_STEPS = ['Select', 'Configure', 'Review and Submit'];
 
 function Stepper({ steps, cur }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, padding: '0 24px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0px', padding: '12px 24px', background: WHITE }}>
       {steps.map((s, i) => {
         const done   = i < cur;
         const active = i === cur;
@@ -102,12 +102,13 @@ function BulkRerunsTabInner() {
     scrollToTop();
   };
 
-  const handleStepReviewSubmit = (mode) => {
+  const handleStepReviewSubmit = (mode, batchId) => {
     const newJobId = ++jobCounterRef.current;
     addActiveJob({
       id:        newJobId,
       cfg,
       isDry:     mode === 'preview',
+      batchId:   batchId ?? null,
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
     });

@@ -157,6 +157,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
                 key={job.id + '-' + job.isDry}
                 cfg={job.cfg}
                 jobId={job.id}
+                batchId={job.batchId ?? null}
                 isDryRun={job.isDry}
                 createdBy={job.createdBy}
                 createdAt={job.createdAt}

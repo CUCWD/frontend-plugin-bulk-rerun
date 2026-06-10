@@ -1,102 +1,11 @@
-// Wizard step 1 — choose source DEMO courses and destination organisations.
+// Wizard step 1 — choose source courses and destination organisations.
 // handleNext cross-joins selected courses × selected orgs into a flat CourseRow[]
 // that StepConfigure receives as its rows prop.
-// All course and org data is static (DEMO environment fixtures; no API call required).
 import { useState, useEffect } from 'react';
-import { Card, Button } from '@openedx/paragon';
+import { Card, Button, Spinner } from '@openedx/paragon';
 
-import { courseRunPrefix, stripRunPrefix } from '../../utils/courseKeys';
-
-// ─── Static data ────────────────────────────────────────────────────────────
-
-const PROGRAMS = [
-  {
-    id: 'faa', code: 'FAA-ACS-AM',
-    name: 'FAA General - Airman Certification Standard - Aviation Mechanic',
-    shortName: 'FAA Aviation Mechanic', icon: 'plane',
-    color: '#006daa', colorLt: '#deeef8',
-    demoOrg: 'CA', demoOrgName: 'Choose Aerospace', demoRun: 'DEMO',
-    courses: [
-      { num: 'FAA-ACS-AM-IA-ACE', name: 'Fundamentals of AC Electricity' },
-      { num: 'FAA-ACS-AM-IA-DCE', name: 'Fundamentals of DC Electricity' },
-      { num: 'FAA-ACS-AM-IB-ACD', name: 'Aircraft Cleaning & Corrosion Control' },
-      { num: 'FAA-ACS-AM-IC-WAB', name: 'Weight & Balance' },
-      { num: 'FAA-ACS-AM-ID-FLF', name: 'Fluid Lines & Fittings' },
-      { num: 'FAA-ACS-AM-IE-MHP', name: 'Materials & Hardware Processes' },
-      { num: 'FAA-ACS-AM-IF-GOS', name: 'Ground Operation & Servicing' },
-      { num: 'FAA-ACS-AM-IG-CCC', name: 'Cleaning and Corrosion Control' },
-      { num: 'FAA-ACS-AM-IH-MAT', name: 'Mathematics' },
-      { num: 'FAA-ACS-AM-II-MIR', name: 'Maintenance and Inspections Regulations' },
-      { num: 'FAA-ACS-AM-IJ-PFA', name: 'Physics for Aviation' },
-      { num: 'FAA-ACS-AM-IK-HTM', name: 'Hand Tools and Measuring Devices' },
-    ],
-  },
-  {
-    id: 'ev-st', code: 'EV-ST',
-    name: 'Electric Vehicle Service Technician',
-    shortName: 'EV Service Technician', icon: 'bolt',
-    color: '#178253', colorLt: '#d4edda',
-    demoOrg: 'SKILREDI', demoOrgName: 'SkilRedi', demoRun: 'DEMO',
-    courses: [
-      { num: 'EV-ST-IEV',  name: 'Introduction to Electric Vehicles (EVs)' },
-      { num: 'EV-ST-SIS',  name: 'BEV Service & Installation: Safety and Standards' },
-      { num: 'EV-ST-EMF',  name: 'Electric Motor Fundamentals and Operations' },
-      { num: 'EV-ST-ESB',  name: 'Energy Storage and Battery Management Systems (BMS)' },
-      { num: 'EV-ST-EVS',  name: 'BEV Software: Data Acquisition, Cybersecurity & Controls' },
-      { num: 'EV-ST-EMDM', name: 'Introduction to BEV Diagnostics and Maintenance' },
-    ],
-  },
-  {
-    id: 'ev-mt', code: 'EV-MT',
-    name: 'Electric Vehicle Manufacturing Technician',
-    shortName: 'EV Manufacturing Technician', icon: 'wrench',
-    color: '#856404', colorLt: '#fff8e6',
-    demoOrg: 'SKILREDI', demoOrgName: 'SkilRedi', demoRun: 'DEMO',
-    courses: [
-      { num: 'EV-MT-IEV', name: 'Introduction to Electric Vehicles (EVs)' },
-      { num: 'EV-MT-SFT', name: 'Electric Vehicle (EV) Manufacturing Safety' },
-      { num: 'EV-MT-QLT', name: 'Quality in Electric Vehicle (EV) Manufacturing' },
-      { num: 'EV-MT-MFG', name: 'EV Manufacturing Processes and Production' },
-      { num: 'EV-MT-MMM', name: 'Maintenance Methods in EV Manufacturing' },
-    ],
-  },
-];
-
-const PROG_BY_ID = Object.fromEntries(PROGRAMS.map(p => [p.id, p]));
-
-// Destination organizations — sorted alphabetically by name
-const ORGS = [
-  { id: 'o1',  code: 'AeroTech',   name: 'AeroTech Aviation',          programs: ['faa'] },
-  { id: 'o2',  code: 'SkyLine',    name: 'SkyLine Flight Academy',      programs: ['faa'] },
-  { id: 'o3',  code: 'ApexAir',    name: 'Apex Air Training',           programs: ['faa'] },
-  { id: 'o4',  code: 'BlueSky',    name: 'Blue Sky Institute',          programs: ['faa'] },
-  { id: 'o5',  code: 'ClearPath',  name: 'ClearPath Aeronautics',       programs: ['faa'] },
-  { id: 'o6',  code: 'EagleWing',  name: 'Eagle Wing Aviation',         programs: ['faa'] },
-  { id: 'o7',  code: 'VoltTech',   name: 'VoltTech Institute',          programs: ['ev-st'] },
-  { id: 'o8',  code: 'AmperePro',  name: 'AmperePro Training Center',   programs: ['ev-st'] },
-  { id: 'o9',  code: 'ChargeUp',   name: 'ChargeUp Academy',            programs: ['ev-st'] },
-  { id: 'o10', code: 'GridPower',  name: 'GridPower Technical School',  programs: ['ev-st'] },
-  { id: 'o11', code: 'AutoMotive', name: 'AutoMotive Technical',        programs: ['ev-mt'] },
-  { id: 'o12', code: 'ElectraFab', name: 'ElectraFab Institute',        programs: ['ev-mt'] },
-  { id: 'o13', code: 'PowerCell',  name: 'PowerCell Training',          programs: ['ev-mt'] },
-  { id: 'o14', code: 'MetroCC',    name: 'Metro Community College',     programs: ['ev-st', 'ev-mt'] },
-  { id: 'o15', code: 'StateVoc',   name: 'State Vocational Institute',  programs: ['faa', 'ev-st'] },
-].sort((a, b) => a.name.localeCompare(b.name));
-
-// Demo source courses derived from PROGRAMS
-const DEMO_COURSES = PROGRAMS.flatMap(prog =>
-  prog.courses.map(fc => ({
-    id: 'demo-' + prog.id + '-' + fc.num,
-    name: courseRunPrefix(prog.demoRun) + fc.name,
-    org: prog.demoOrg,
-    orgName: prog.demoOrgName,
-    num: fc.num,
-    run: prog.demoRun,
-    shortName: prog.shortName,
-    progId: prog.id,
-    isDemo: true,
-  }))
-);
+import { stripRunPrefix } from '../../utils/courseKeys';
+import { useCourses, useOrgs, usePrograms } from '../../hooks';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const BRAND     = '#006daa';
@@ -124,21 +33,63 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
   const [progFilter,   setProgFilter]   = useState('');
   const [srcOrgFilter, setSrcOrgFilter] = useState('');
 
-  // Source org options derived from demo courses
-  const srcOrgOptions = [...new Set(DEMO_COURSES.map(c => c.org))].map(code => {
-    if (code === 'CA')       return { code, name: 'Choose Aerospace' };
-    if (code === 'SKILREDI') return { code, name: 'SkilRedi' };
-    return { code, name: code };
-  });
+  // Destination orgs from the LMS /api/organizations/v0/organizations/ endpoint
+  const { data: orgItems = [], isLoading: orgsLoading, isError: orgsError } = useOrgs();
+  const orgs = [...orgItems]
+    .sort((a, b) => a.shortName.localeCompare(b.shortName))
+    .map(o => ({ code: o.shortName, name: o.name || o.shortName }));
+
+  // Active programs from course-discovery — only fetched when discovery is enabled
+  const { data: livePrograms = [] } = usePrograms({ enabled: courseDiscoveryEnabled });
+
+  // courseKey → program UUID, built from discovery program→courseRun edges
+  const courseKeyToProgId = Object.fromEntries(
+    livePrograms.flatMap(p => p.courseRunKeys.map(k => [k, p.uuid]))
+  );
+
+  // Program lookup keyed by UUID, sourced entirely from course-discovery
+  const programById = Object.fromEntries(
+    livePrograms.map(p => [p.uuid, { id: p.uuid, shortName: p.title, color: BRAND, colorLt: BRAND_LT }])
+  );
+
+  const showPrograms = courseDiscoveryEnabled && livePrograms.length > 0;
+
+  // Source courses from the Studio API
+  const { data: liveCourses = [], isLoading: coursesLoading, isError: coursesError } =
+    useCourses('');
+
+  const courses = liveCourses.map(c => ({
+    id:       c.courseKey,
+    name:     c.displayName,
+    org:      c.org,
+    orgName:  c.org,
+    num:      c.number,
+    run:      c.run,
+    shortName: null,
+    progId:   courseKeyToProgId[c.courseKey] ?? null,
+    isDemo:   false,
+  }));
+
+  // shortName → display name lookup built from the LMS orgs API
+  const orgNameByCode = Object.fromEntries(orgs.map(o => [o.code, o.name]));
+
+  // Orgs that own source DEMO courses are excluded from the destination list
+  const srcOrgCodes = new Set(courses.map(c => c.org));
+  const destOrgs = orgs.filter(o => !srcOrgCodes.has(o.code));
+
+  // Source org options derived from active course list
+  const srcOrgOptions = [...new Map(
+    courses.map(c => [c.org, { code: c.org, name: orgNameByCode[c.org] || c.org }])
+  ).values()];
 
   // Program options scoped to current src-org filter
   const availableProgIds = new Set(
-    DEMO_COURSES.filter(c => !srcOrgFilter || c.org === srcOrgFilter).map(c => c.progId)
+    courses.filter(c => !srcOrgFilter || c.org === srcOrgFilter).map(c => c.progId).filter(Boolean)
   );
 
   // Filtered course list
   const ql = courseQ.toLowerCase();
-  const filtered = DEMO_COURSES.filter(c => {
+  const filtered = courses.filter(c => {
     if (srcOrgFilter && c.org !== srcOrgFilter) return false;
     if (progFilter   && c.progId !== progFilter)  return false;
     if (ql && !stripRunPrefix(c.name).toLowerCase().includes(ql)
@@ -174,9 +125,9 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
   });
 
   const handleNext = () => {
-    const destOrgs = ORGS.filter(o => destOrgSel.has(o.code));
-    const rows = DEMO_COURSES.filter(c => courseSel.has(c.id)).flatMap(c =>
-      destOrgs.map(o => ({
+    const selectedDestOrgs = destOrgs.filter(o => destOrgSel.has(o.code));
+    const rows = courses.filter(c => courseSel.has(c.id)).flatMap(c =>
+      selectedDestOrgs.map(o => ({
         id:       c.id + '-' + o.code,
         name:     stripRunPrefix(c.name),
         org:      o.code,
@@ -187,7 +138,7 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
         srcNum:   c.num,
         srcRun:   c.run,
         isNewOrg: false,
-        fromDemo: true,
+        fromDemo: !courseDiscoveryEnabled,
         progId:   c.progId,
       }))
     );
@@ -220,17 +171,18 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
         alignItems: 'center', borderTop: '1px solid ' + BORDER,
         borderBottom: '1px solid ' + BORDER, background: G50,
       }}>
-        {/* Program dropdown — hidden when courseDiscoveryEnabled=false */}
-        {courseDiscoveryEnabled && (
+        {/* Program dropdown — hidden when discovery is disabled or returns no programs */}
+        {showPrograms && (
           <select
             value={progFilter}
             onChange={e => setProgFilter(e.target.value)}
             style={{ padding: '7px 10px', fontSize: 13, border: '1px solid ' + BORDER, borderRadius: 4, minWidth: 160 }}
           >
             <option value="">All programs</option>
-            {PROGRAMS.filter(p => availableProgIds.has(p.id)).map(p => (
-              <option key={p.id} value={p.id}>{p.shortName}</option>
-            ))}
+            {Object.values(programById)
+              .map(p => (
+                <option key={p.id} value={p.id}>{p.shortName}</option>
+              ))}
           </select>
         )}
 
@@ -300,7 +252,18 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
       )}
 
       {/* Course table */}
-      <div style={{ overflowX: 'auto' }}>
+      {coursesLoading && (
+        <div style={{ padding: '2.5rem', textAlign: 'center', color: G500 }}>
+          <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
+          Loading courses…
+        </div>
+      )}
+      {coursesError && (
+        <div style={{ padding: '1rem 20px', color: '#c32d3a', fontSize: 13 }}>
+          Failed to load courses. Please refresh and try again.
+        </div>
+      )}
+      <div style={{ overflowX: 'auto', display: (coursesLoading || coursesError) ? 'none' : undefined }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid ' + BORDER, background: G50 }}>
@@ -320,7 +283,7 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
                   style={{ width: 15, height: 15, accentColor: BRAND, cursor: 'pointer' }}
                 />
               </th>
-              {courseDiscoveryEnabled && (
+              {showPrograms && (
                 <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700 }}>Program</th>
               )}
               <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700 }}>Org</th>
@@ -332,16 +295,16 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={courseDiscoveryEnabled ? 5 : 4}
+                  colSpan={showPrograms ? 5 : 4}
                   style={{ padding: '2.5rem', textAlign: 'center', color: G500 }}
                 >
-                  No DEMO courses match your filters.
+                  No courses match your filters.
                 </td>
               </tr>
             )}
             {filtered.map(c => {
               const on = courseSel.has(c.id);
-              const pp = PROG_BY_ID[c.progId];
+              const pp = programById[c.progId];
               return (
                 <tr
                   key={c.id}
@@ -362,7 +325,7 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
                       style={{ width: 15, height: 15, accentColor: BRAND, pointerEvents: 'none' }}
                     />
                   </td>
-                  {courseDiscoveryEnabled && (
+                  {showPrograms && (
                     <td style={{ padding: '9px 14px' }}>
                       {pp && (
                         <span style={{
@@ -396,8 +359,8 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
         fontSize: 12, color: G500, display: 'flex', justifyContent: 'space-between',
       }}>
         <span>
-          {'Showing ' + filtered.length + ' DEMO courses'}
-          {filtered.length !== DEMO_COURSES.length ? ' of ' + DEMO_COURSES.length : ''}
+          {'Showing ' + filtered.length + ' courses'}
+          {filtered.length !== courses.length ? ' of ' + courses.length : ''}
         </span>
         <span>{courseCount} selected</span>
       </div>
@@ -411,59 +374,62 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
               <div style={{ fontSize: 12, color: G500 }}>Each selected course will be rerun for every checked organization.</div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <Button variant="outline-primary" size="sm" onClick={() => setDestOrgSel(new Set(ORGS.map(o => o.code)))}>All</Button>
+              <Button variant="outline-primary" size="sm" onClick={() => setDestOrgSel(new Set(destOrgs.map(o => o.code)))}>All</Button>
               {destOrgCount > 0 && (
                 <Button variant="tertiary" size="sm" onClick={() => setDestOrgSel(new Set())} style={{ color: '#c32d3a' }}>Clear</Button>
               )}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8 }}>
-            {ORGS.map(o => {
-              const on = destOrgSel.has(o.code);
-              const orgProg = o.programs && o.programs.length > 0 ? PROG_BY_ID[o.programs[0]] : null;
-              return (
-                <div
-                  key={o.code}
-                  onClick={() => toggleDestOrg(o.code)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 12px',
-                    border: '1px solid ' + (on ? BRAND : BORDER),
-                    borderRadius: 4, cursor: 'pointer',
-                    background: on ? BRAND_XLT : WHITE,
-                    transition: 'all .12s',
-                  }}
-                  onMouseEnter={e => { if (!on) e.currentTarget.style.background = G50; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = on ? BRAND_XLT : WHITE; }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    readOnly
-                    style={{ width: 14, height: 14, accentColor: BRAND, pointerEvents: 'none', flexShrink: 0 }}
-                  />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: on ? 600 : 400, fontSize: 13,
-                      color: on ? BRAND : G900,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                      {o.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: G500, fontFamily: MONO }}>
-                      {o.code}
-                      {orgProg && ' ' + orgProg.shortName.split(' ')[0]}
+          {orgsLoading && (
+            <div style={{ padding: '1.5rem', textAlign: 'center', color: G500, fontSize: 13 }}>
+              <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
+              Loading organizations…
+            </div>
+          )}
+          {orgsError && (
+            <div style={{ padding: '0.5rem 0', color: '#c32d3a', fontSize: 13 }}>
+              Failed to load organizations. Please refresh and try again.
+            </div>
+          )}
+          {!orgsLoading && !orgsError && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8 }}>
+              {destOrgs.map(o => {
+                const on = destOrgSel.has(o.code);
+                return (
+                  <div
+                    key={o.code}
+                    onClick={() => toggleDestOrg(o.code)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px',
+                      border: '1px solid ' + (on ? BRAND : BORDER),
+                      borderRadius: 4, cursor: 'pointer',
+                      background: on ? BRAND_XLT : WHITE,
+                      transition: 'all .12s',
+                    }}
+                    onMouseEnter={e => { if (!on) e.currentTarget.style.background = G50; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = on ? BRAND_XLT : WHITE; }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      readOnly
+                      style={{ width: 14, height: 14, accentColor: BRAND, pointerEvents: 'none', flexShrink: 0 }}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontWeight: on ? 600 : 400, fontSize: 13,
+                        color: on ? BRAND : G900,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {o.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: G500, fontFamily: MONO }}>{o.code}</div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {destOrgCount === 0 && (
-            <div style={{ marginTop: 10, fontSize: 12, color: '#856404', fontWeight: 500 }}>
-              Select at least one destination organization to continue.
+                );
+              })}
             </div>
           )}
         </div>

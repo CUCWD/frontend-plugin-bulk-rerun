@@ -3,8 +3,10 @@
 // Mode toggle: 'preview' dispatches a dry-run job; 'execute' creates real course reruns.
 // The Submit button is disabled while any conflict row is unresolved.
 import { useState } from 'react';
-import { Button, Alert, Badge } from '@openedx/paragon';
+import { Button, Alert, Badge, Spinner } from '@openedx/paragon';
 
+import { useCreateBatch } from '../../hooks';
+import { buildBatchPayload } from '../../utils/batchPayload';
 import { makeKey, detectConflict } from '../../utils/courseKeys';
 import OrgRoleSummary from './OrgRoleSummary';
 
@@ -53,8 +55,13 @@ export default function StepReview({ cfg, onBack, onSubmit }) {
 
   const existsSetSafe = existsSet instanceof Set ? existsSet : new Set(existsSet || []);
 
-  const [mode, setMode] = useState('preview');
-  const [busy, setBusy] = useState(false);
+  const dryRunEnabled = process.env.ENABLE_BULK_RERUN_DRY_RUN === 'true' || process.env.ENABLE_BULK_RERUN_DRY_RUN === true;
+
+  const createBatch = useCreateBatch();
+
+  const [mode,        setMode]        = useState(dryRunEnabled ? 'preview' : 'execute');
+  const [busy,        setBusy]        = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const conflicts = rows.map((r, i) => detectConflict(r, rows, i, existsSetSafe));
   const nConf = conflicts.filter(Boolean).length;
@@ -127,40 +134,42 @@ export default function StepReview({ cfg, onBack, onSubmit }) {
         </Alert>
       )}
 
-      {/* Execution mode */}
-      <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 14, background: WHITE }}>
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid ' + BORDER }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>Execution mode</span>
+      {/* Execution mode — entire panel hidden when ENABLE_DRY_RUN is false; app runs execute-only */}
+      {dryRunEnabled && (
+        <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 14, background: WHITE }}>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid ' + BORDER }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>Execution mode</span>
+          </div>
+          <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {execOptions.map(m => (
+              <label
+                key={m.v}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '12px 14px',
+                  border: '2px solid ' + (mode === m.v ? BRAND : BORDER),
+                  borderRadius: 4, cursor: 'pointer',
+                  background: mode === m.v ? BRAND_XLT : WHITE,
+                  transition: 'border .12s',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="execmode"
+                  value={m.v}
+                  checked={mode === m.v}
+                  onChange={() => setMode(m.v)}
+                  style={{ marginTop: 3, accentColor: BRAND }}
+                />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{m.icon + ' ' + m.title}</div>
+                  <div style={{ fontSize: 12, color: G500, marginTop: 3, lineHeight: 1.5 }}>{m.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
-        <div style={{ padding: '12px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {execOptions.map(m => (
-            <label
-              key={m.v}
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-                padding: '12px 14px',
-                border: '2px solid ' + (mode === m.v ? BRAND : BORDER),
-                borderRadius: 4, cursor: 'pointer',
-                background: mode === m.v ? BRAND_XLT : WHITE,
-                transition: 'border .12s',
-              }}
-            >
-              <input
-                type="radio"
-                name="execmode"
-                value={m.v}
-                checked={mode === m.v}
-                onChange={() => setMode(m.v)}
-                style={{ marginTop: 3, accentColor: BRAND }}
-              />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{m.icon + ' ' + m.title}</div>
-                <div style={{ fontSize: 12, color: G500, marginTop: 3, lineHeight: 1.5 }}>{m.desc}</div>
-              </div>
-            </label>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Settings summary */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
@@ -286,7 +295,7 @@ export default function StepReview({ cfg, onBack, onSubmit }) {
                                   ? <span style={{ cursor: 'help', fontSize: 13 }}>{ct === 'exists' ? '🚫' : '⚠️'}</span>
                                   : <span style={{ color: SUCCESS, fontSize: 12 }}>✓</span>}
                               </td>
-                              <td style={{ padding: '5px 10px', color: G700, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.name}</td>
+                              <td style={{ padding: '7px 10px', color: G700, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.name}</td>
                               <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcOrg}</td>
                               <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcNum}</td>
                               <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcRun}</td>
@@ -308,6 +317,14 @@ export default function StepReview({ cfg, onBack, onSubmit }) {
         })}
       </div>
 
+      {/* Submit error */}
+      {submitError && (
+        <Alert variant="danger" className="mb-3 py-2">
+          <strong style={{ display: 'block', marginBottom: 2 }}>Submission failed</strong>
+          {submitError}
+        </Alert>
+      )}
+
       {/* Bottom action bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button variant="outline-primary" onClick={onBack} disabled={busy}>Back to configure</Button>
@@ -320,13 +337,30 @@ export default function StepReview({ cfg, onBack, onSubmit }) {
           <Button
             variant={mode === 'preview' ? 'outline-primary' : 'primary'}
             disabled={!canGo}
-            onClick={() => {
+            onClick={async () => {
               setBusy(true);
-              setTimeout(() => onSubmit(mode), 900);
+              setSubmitError(null);
+              try {
+                const payload = buildBatchPayload(cfg, mode === 'preview');
+                const result = await createBatch.mutateAsync(payload);
+                onSubmit(mode, result?.id ?? null);
+              } catch (err) {
+                setBusy(false);
+                setSubmitError(
+                  err?.response?.data?.detail
+                  || err?.message
+                  || 'Could not reach /api/bulk-rerun/batches/ — check backend connectivity.'
+                );
+              }
             }}
           >
             {busy
-              ? (mode === 'preview' ? 'Running preview...' : 'Submitting...')
+              ? (
+                <>
+                  <Spinner animation="border" size="sm" style={{ width: 14, height: 14, borderWidth: '0.15em', marginRight: 6 }} />
+                  {mode === 'preview' ? 'Running preview...' : 'Submitting...'}
+                </>
+              )
               : (mode === 'preview' ? '🔍 Preview plan' : '▶ Execute reruns')}
           </Button>
         </div>

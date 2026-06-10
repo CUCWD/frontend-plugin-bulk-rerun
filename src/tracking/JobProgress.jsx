@@ -1,14 +1,37 @@
 // Core live-execution and historical-replay component for a single bulk rerun job.
-// Live mode runs a client-side simulation across four sequential phases:
-//   0 — org registration (new-org mode only)
-//   1 — course creation, certificate setup, and team assignment
-//   2 — Course Discovery metadata sync (skipped if courseDiscoveryEnabled=false)
-//   3 — program linking
-// History mode: when historyEntry is provided items are pre-populated and simulation is skipped.
-// Dry-run: same phases execute, all log messages prefixed [DRY-RUN], result NOT saved to history.
+//
+// Three modes:
+//   Real mode  (batchId provided, no historyEntry): useBatch polls GET /batches/:id/
+//     every 2 s and drives all phase/item state. Simulation code is bypassed.
+//   DEMO mode  (no batchId, no historyEntry): client-side simulation across four phases:
+//     Phase 0 — org registration (new-org mode only)
+//     Phase 1 — course creation, certificate setup, and team assignment
+//     Phase 2 — Course Discovery metadata sync (skipped if courseDiscoveryEnabled=false)
+//     Phase 3 — program linking
+//   History mode (historyEntry provided): items are pre-populated from the stored entry;
+//     neither polling nor simulation runs.
+//
+// Dry-run: all log messages are prefixed [DRY-RUN]; result is NOT saved to history.
+//
+// Expected API shape for useBatch (GET /api/bulk-rerun/batches/:id/):
+//   {
+//     id, status, phase,
+//     jobs: [{ id, org, org_name, course_name, src_key, target_key,
+//              status, elapsed, fail_reason, logs: [{ts, lv, msg}] }],
+//     reg_items?:  [{ id, code, name, status, logs }],
+//     disc_items?: [{ id, org, status, logs }],
+//     prog_items?: [{ id, org, status, logs }]
+//   }
+//   status:  'pending' | 'running' | 'succeeded' | 'failed' | 'partial'
+//   phase:   0-3 (active phase number) | 4 (complete)
+//
+// NOTE: useJobLogs (see hooks.ts) can stream per-job log lines as they arrive.
+//   Wire it inside a dedicated <JobLogPanel batchJobId={...} /> sub-component
+//   once the backend /jobs/:id/logs/ endpoint is live.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Alert, Spinner, ProgressBar, Badge } from '@openedx/paragon';
 
+import { useBatch } from '../hooks';
 import { makeKey } from '../utils/courseKeys';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
@@ -31,7 +54,7 @@ const WHITE    = '#fff';
 const MONO     = '"SFMono-Regular","Courier New",monospace';
 const FONT     = '"Open Sans",system-ui,sans-serif';
 
-// ── Simulation log sequences ──────────────────────────────────────────────────
+// ── Simulation log sequences (DEMO mode only) ─────────────────────────────────
 const ORG_REG_LOGS = [
   { d: 300,  lv: 'info', msg: 'Starting organization registration...' },
   { d: 800,  lv: 'info', msg: 'organizations.api.get_or_create_organization(short_name=\'{code}\', name=\'{name}\')' },
@@ -75,10 +98,19 @@ const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_
 // MODE label map — hoisted to avoid object-literal subscript inline in JSX
 const MODE_LBL = { program: 'By Program', neworg: 'New Organization', course: 'By Individual Course' };
 
+// Maps API status strings ('succeeded', 'running', …) to the component's internal format.
+const mapApiStatus = (s) => {
+  if (s === 'succeeded') return 'success';
+  if (s === 'failed')    return 'failed';
+  if (s === 'running')   return 'running';
+  return 'pending';
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function JobProgress({
   cfg,
   jobId,
+  batchId,      // real API batch ID (string); when provided, real polling replaces simulation
   isDryRun,
   createdBy,
   createdAt,
@@ -102,7 +134,6 @@ export default function JobProgress({
   const [copied, setCopied] = useState(false);
 
   // ── Initialise items for each phase ────────────────────────────────────────
-  // initCourse checks historyEntry FIRST (before rows.length)
   const initReg = useCallback(() => {
     if (historyEntry) return [];
     return isNewOrg
@@ -163,7 +194,81 @@ export default function JobProgress({
 
   const booted = useRef(false);
 
-  const batchDone = courseItems.every(it => it.status === 'success' || it.status === 'failed');
+  // ── Mode flags ─────────────────────────────────────────────────────────────
+  const isRealMode = !!batchId && !historyEntry;
+  const isSimMode  = !batchId && !historyEntry;
+
+  // ── Real API polling ───────────────────────────────────────────────────────
+  // useBatch is always called (React hook rules); it is self-disabled when
+  // batchId is falsy (enabled: !!batchId inside the hook).
+  const batchQuery = useBatch(batchId || null);
+
+  // Sync each poll tick → component state
+  useEffect(() => {
+    if (!isRealMode || !batchQuery.data) return;
+    const batch = batchQuery.data;
+
+    // Advance the active phase indicator
+    if (typeof batch.phase === 'number') setPhase(batch.phase);
+
+    // Update course item statuses and log lines
+    if (Array.isArray(batch.jobs) && batch.jobs.length > 0) {
+      setCourseItems(prev => prev.map((item, i) => {
+        const job = batch.jobs[i];
+        if (!job) return item;
+        const status = mapApiStatus(job.status);
+        const logs = Array.isArray(job.logs) && job.logs.length > 0 ? job.logs : item.logs;
+        return { ...item, status, logs, elapsed: job.elapsed || item.elapsed };
+      }));
+    }
+
+    // Update org registration items (phase 0, new-org mode)
+    if (Array.isArray(batch.reg_items) && batch.reg_items.length > 0) {
+      setRegItems(prev => prev.map((item, i) => {
+        const ri = batch.reg_items[i];
+        if (!ri) return item;
+        return {
+          ...item,
+          status: mapApiStatus(ri.status),
+          logs: Array.isArray(ri.logs) && ri.logs.length > 0 ? ri.logs : item.logs,
+        };
+      }));
+    }
+
+    // Update discovery sync items (phase 2)
+    if (Array.isArray(batch.disc_items) && batch.disc_items.length > 0) {
+      setDiscItems(prev => prev.map((item, i) => {
+        const di = batch.disc_items[i];
+        if (!di) return item;
+        return {
+          ...item,
+          status: mapApiStatus(di.status),
+          logs: Array.isArray(di.logs) && di.logs.length > 0 ? di.logs : item.logs,
+        };
+      }));
+    }
+
+    // Update program linking items (phase 3)
+    if (Array.isArray(batch.prog_items) && batch.prog_items.length > 0) {
+      setProgItems(prev => prev.map((item, i) => {
+        const pi = batch.prog_items[i];
+        if (!pi) return item;
+        return {
+          ...item,
+          status: mapApiStatus(pi.status),
+          logs: Array.isArray(pi.logs) && pi.logs.length > 0 ? pi.logs : item.logs,
+        };
+      }));
+    }
+  }, [batchQuery.data, isRealMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derived counts ─────────────────────────────────────────────────────────
+  // In real mode, completion is determined by the batch-level API status so the
+  // save-to-history effect fires reliably even if a sync tick is still in flight.
+  const batchDone = isRealMode
+    ? !!batchQuery.data && ['succeeded', 'failed', 'partial'].includes(batchQuery.data.status)
+    : courseItems.every(it => it.status === 'success' || it.status === 'failed');
+
   const batchFail = courseItems.filter(it => it.status === 'failed').length;
 
   const rDone = regItems.filter(i => i.status === 'success').length;
@@ -212,7 +317,7 @@ export default function JobProgress({
 
   const ts = () => new Date().toLocaleTimeString('en-US', { hour12: false });
 
-  // ── Generic item runner — stagger by list index ────────────────────────────
+  // ── Generic item runner — DEMO simulation only ────────────────────────────
   const runItem = useCallback((seq, setFn, onAllDone, listIdx) => item => {
     const pad   = isDryRun ? s => '[DRY-RUN] ' + s : s => s;
     const subst = s => s.replace('{code}', item.code || item.org || '').replace('{name}', item.name || '');
@@ -239,10 +344,10 @@ export default function JobProgress({
     }, d + (listIdx || 0) * 350));
   }, [isDryRun]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Boot once: start first phase ──────────────────────────────────────────
+  // ── Boot once: start first simulation phase (DEMO mode only) ──────────────
   useEffect(() => {
+    if (!isSimMode) return;
     if (booted.current) return;
-    if (historyEntry) return; // historical replay — do not rerun simulation
     booted.current = true;
     setTimeout(() => {
       if (isNewOrg) {
@@ -257,8 +362,9 @@ export default function JobProgress({
     }, 400);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 0→1 transition: start courses after org reg
+  // Phase 0→1 transition: start courses after org registration (DEMO mode only)
   useEffect(() => {
+    if (!isSimMode) return;
     if (phase === 1 && booted.current && isNewOrg) {
       courseItems.slice(0, 3).forEach((it, i) =>
         setTimeout(() => runItem(COURSE_LOGS, setCourseItems, null, i)(it), i * 300)
@@ -266,15 +372,17 @@ export default function JobProgress({
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // All courses done → advance to discovery
+  // All courses done → advance to discovery (DEMO mode only)
   const cDoneCount = courseItems.filter(i => i.status === 'success').length;
   useEffect(() => {
+    if (!isSimMode) return;
     if (cDoneCount > 0 && cDoneCount === courseItems.length && phase === 1) {
       if (courseDiscoveryEnabled) setTimeout(() => setPhase(2), 600);
     }
   }, [cDoneCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!isSimMode) return;
     if (phase === 2 && courseDiscoveryEnabled) {
       discItems.slice(0, 2).forEach((it, i) =>
         setTimeout(() => runItem(DISCOVERY_LOGS, setDiscItems, () => setPhase(3), i)(it), i * 400)
@@ -283,6 +391,7 @@ export default function JobProgress({
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!isSimMode) return;
     if (phase === 3 && courseDiscoveryEnabled) {
       progItems.slice(0, 2).forEach((it, i) =>
         setTimeout(() => runItem(PROGRAM_LOGS, setProgItems, null, i)(it), i * 400)
@@ -342,6 +451,25 @@ export default function JobProgress({
     {              l: 'Orgs complete',     v: allComplete ? String(orgs.length) : '-',         c: allComplete ? SUCCESS : G500 },
   ];
 
+  // ── Real mode: loading and error states ───────────────────────────────────
+  if (isRealMode && batchQuery.isLoading && !batchQuery.data) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: G500, fontFamily: FONT }}>
+        <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
+        Connecting to batch API...
+      </div>
+    );
+  }
+
+  if (isRealMode && batchQuery.isError) {
+    return (
+      <Alert variant="danger" className="mb-0">
+        <strong>Failed to load batch status.</strong>
+        {' Check that the backend /api/bulk-rerun/batches/ endpoint is reachable.'}
+      </Alert>
+    );
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -385,6 +513,9 @@ export default function JobProgress({
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>{'Job #BR-' + jobId}</span>
             <span style={{ fontSize: 12, color: G500 }}>{courseItems.length + ' runs - ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : '')}</span>
+            {isRealMode && batchQuery.isFetching && (
+              <Spinner animation="border" size="sm" style={{ width: 12, height: 12, borderWidth: '0.15em', marginLeft: 4, color: BRAND }} />
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {allComplete && (
