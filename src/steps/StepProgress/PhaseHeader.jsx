@@ -3,37 +3,21 @@
 // Skipped phases (Discovery disabled) show a warning Badge instead of a filled circle.
 import { Badge } from '@openedx/paragon';
 
-const SUCCESS = '#178253';
-const BRAND   = '#006daa';
-const G200    = '#e0e0e0';
-const G500    = '#6c757d';
-const G300    = '#c8c8c8';
-const G900    = '#1f2937';
-const WARNING = '#856404';
-const WARNING_BG = '#fff8e6';
-const WARNING_BDR = '#ffc107';
-
 export default function PhaseHeader({ num, label, sub, done, active, skipped, accentColor }) {
-  const bg = skipped ? G200
-           : done    ? (accentColor || SUCCESS)
-           : active  ? BRAND
-           : G200;
-  const col = (done || active) && !skipped ? '#fff' : G500;
+  const circleMod = done ? '--done' : active ? '--active' : '';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-      <div style={{
-        width: 22, height: 22, borderRadius: '50%',
-        background: bg, color: col,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 700, flexShrink: 0,
-      }}>
+    <div className="ph-root">
+      <div
+        className={`ph-circle${circleMod ? ' ph-circle' + circleMod : ''}`}
+        style={done && accentColor ? { background: accentColor } : undefined}
+      >
         {done ? '✓' : num}
       </div>
-      <span style={{ fontWeight: 600, fontSize: 13, color: skipped ? G300 : G900 }}>{label}</span>
-      <span style={{ fontSize: 12, color: skipped ? G300 : G500 }}>{sub}</span>
+      <span className={`ph-label${skipped ? ' ph-label--skipped' : ''}`}>{label}</span>
+      <span className={`ph-sub${skipped ? ' ph-sub--skipped' : ''}`}>{sub}</span>
       {skipped && (
-        <Badge variant="warning" pill style={{ fontSize: 11, lineHeight: 1.5 }}>
+        <Badge variant="warning" pill>
           Skipped - Discovery not enabled
         </Badge>
       )}

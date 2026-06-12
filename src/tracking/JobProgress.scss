@@ -1,0 +1,326 @@
+// Shared styles for JobProgress, PhaseHeader, and PhaseItemRows.
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$jp-brand:     #006daa;
+$jp-brand-xlt: #eef6fb;
+$jp-success:   #178253;
+$jp-danger:    #c32d3a;
+$jp-g50:       #f8f9fa;
+$jp-g200:      #e0e0e0;
+$jp-g300:      #c8c8c8;
+$jp-g500:      #6c757d;
+$jp-g700:      #454545;
+$jp-g900:      #1f2937;
+$jp-border:    #dee2e6;
+$jp-white:     #fff;
+$jp-mono:      "SFMono-Regular", "Courier New", monospace;
+
+// ── Loading ────────────────────────────────────────────────────────────────────
+.jp-loading {
+  padding: 2rem;
+  text-align: center;
+  color: $jp-g500;
+}
+
+// ── Alert titles ───────────────────────────────────────────────────────────────
+.jp-alert-title { display: block; margin-bottom: 2px; }
+
+// ── Program banner ─────────────────────────────────────────────────────────────
+.jp-prog-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jp-prog-icon  { font-size: 20px; }
+.jp-prog-title {
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// ── Main job card ──────────────────────────────────────────────────────────────
+.jp-card {
+  border: 1px solid $jp-border;
+  border-radius: 4px;
+  background: $jp-white;
+}
+
+.jp-card-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid $jp-border;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+}
+
+.jp-card-header-left  { display: flex; align-items: baseline; gap: 8px; }
+.jp-card-header-right { display: flex; gap: 8px; }
+.jp-card-title        { font-weight: 600; font-size: 14px; color: $jp-g700; }
+.jp-card-meta         { font-size: 12px; color: $jp-g500; }
+.jp-card-body         { padding: 16px 20px; }
+
+// ── Stat cards ─────────────────────────────────────────────────────────────────
+.jp-stat-grid {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.jp-stat-card {
+  background: $jp-g50;
+  border: 1px solid $jp-border;
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.jp-stat-val   { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.jp-stat-label { font-size: 12px; color: $jp-g500; }
+
+// ── Phase sections ─────────────────────────────────────────────────────────────
+.jp-phase {
+  margin-bottom: 16px;
+  transition: opacity .3s;
+
+  &--faded   { opacity: 0.45; }
+  &--skipped { opacity: 0.35; }
+}
+
+.jp-phase-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.jp-phase-btns  { display: flex; gap: 6px; }
+.jp-phase-items { margin-top: 8px; }
+
+// ── Org accordion (phase 1) ────────────────────────────────────────────────────
+.jp-org-item {
+  border: 1px solid $jp-border;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.jp-org-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: $jp-g50;
+  border-left: 4px solid $jp-g300;
+  transition: background .12s;
+
+  &:hover      { background: #e9ecef; }
+  &--running   { border-left-color: $jp-brand; }
+  &--done      { border-left-color: $jp-success; }
+}
+
+.jp-org-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: $jp-g300;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  &--running { background: $jp-brand; }
+  &--done    { background: $jp-success; }
+}
+
+.jp-org-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: $jp-g300;
+
+  &--running { color: $jp-brand; }
+  &--done    { color: $jp-success; }
+}
+
+.jp-org-meta   { font-size: 12px; color: $jp-g500; }
+.jp-org-spacer { flex: 1; }
+.jp-org-toggle { font-size: 11px; color: $jp-g500; }
+.jp-org-rows   { padding: 4px 0; }
+
+// ── Action bar ─────────────────────────────────────────────────────────────────
+.jp-action-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+// ── PhaseHeader ────────────────────────────────────────────────────────────────
+.ph-root {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ph-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: $jp-g200;
+  color: $jp-g500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  &--active  { background: $jp-brand;   color: #fff; }
+  &--done    { background: $jp-success; color: #fff; }
+}
+
+.ph-label {
+  font-weight: 600;
+  font-size: 16px;
+  color: $jp-g900;
+
+  &--skipped { color: $jp-g300; }
+}
+
+.ph-sub {
+  font-size: 12px;
+  color: $jp-g500;
+
+  &--skipped { color: $jp-g300; }
+}
+
+// ── PhaseItemRows / PhaseItem ──────────────────────────────────────────────────
+.pi-item { 
+  padding: 0px 42px;
+  border-bottom: 1px solid $jp-border;
+}
+
+.pi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  cursor: pointer;
+  transition: background .1s;
+
+  &:hover { background: $jp-g50; }
+}
+
+.pi-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.pi-sublabel {
+  font-family: $jp-mono;
+  font-size: 15px;
+  color: $jp-g500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pi-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 15px;
+  font-weight: 500;
+  min-width: 86px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+
+  &--success { color: $jp-success; }
+  &--running { color: $jp-brand; }
+  &--failed  { color: $jp-danger; }
+  &--pending { color: $jp-g500; }
+}
+
+.pi-elapsed {
+  font-size: 15px;
+  color: $jp-g500;
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.pi-toggle { font-size: 11px; color: $jp-g500; flex-shrink: 0; }
+
+.pi-details { margin-bottom: 8px; }
+
+.pi-target-strip {
+  display: flex;
+  font-size: 11px;
+  font-family: $jp-mono;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  border: 1px solid $jp-border;
+  border-bottom: none;
+}
+
+.pi-target-col {
+  flex: 1;
+  padding: 5px 10px;
+  background: $jp-brand-xlt;
+  border-right: 1px solid $jp-border;
+}
+
+.pi-target-col-label {
+  font-size: 12px;
+  color: $jp-brand;
+  opacity: .7;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-family: "Open Sans", system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.pi-target-col-val {
+  color: $jp-brand;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pi-log-panel {
+  background: #1e2129;
+  border-radius: 0 0 4px 4px;
+  padding: 10px 14px;
+  font-family: $jp-mono;
+  font-size: 14px;
+  line-height: 1.8;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid $jp-border;
+  border-top: none;
+
+  &--solo {
+    border-radius: 4px;
+    border: none;
+  }
+}
+
+.pi-log-waiting { color: #6e7681; }
+.pi-log-ok      { color: #4ec994; }
+.pi-log-info    { color: #79b8ff; }
+.pi-log-warn    { color: #f0ad4e; }
+.pi-log-error   { color: #ff7b72; }

@@ -1,0 +1,100 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$sp-brand:   #006daa;
+$sp-danger:  #c32d3a;
+$sp-g50:     #f8f9fa;
+$sp-g500:    #6c757d;
+$sp-g700:    #454545;
+$sp-g900:    #1f2937;
+$sp-border:  #939ca5;
+$sp-white:   #fff;
+$sp-mono:    "SFMono-Regular", "Courier New", monospace;
+
+// ── Empty state ────────────────────────────────────────────────────────────────
+.sp-empty {
+  border: 1px solid $sp-border;
+  border-radius: 4px;
+  background: $sp-white;
+  padding: 3rem;
+  text-align: center;
+  color: $sp-g500;
+}
+
+.sp-empty-icon  { font-size: 36px; margin-bottom: 12px; }
+.sp-empty-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; color: $sp-g700; }
+.sp-empty-sub   { font-size: 14px; margin-bottom: 20px; }
+
+// ── Filter bar ─────────────────────────────────────────────────────────────────
+.sp-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.sp-filter-count { font-size: 14px; color: $sp-g700; font-weight: 500; }
+
+.sp-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.sp-filter-label  { font-size: 13px; color: $sp-g500; }
+.sp-filter-select { min-width: 180px; }
+
+// ── No-match message ───────────────────────────────────────────────────────────
+.sp-no-match {
+  border: 1px solid $sp-border;
+  border-radius: 4px;
+  background: $sp-white;
+  padding: 2rem;
+  text-align: center;
+  color: $sp-g500;
+  font-size: 14px;
+}
+
+// ── Job card ───────────────────────────────────────────────────────────────────
+.sp-job-card { margin-bottom: 16px; }
+
+.sp-job-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: $sp-g50;
+  border: 1px solid $sp-border;
+  cursor: pointer;
+
+  &--expanded  { border-radius: 4px 4px 0 0; }
+  &--collapsed { border-radius: 4px; }
+}
+
+.sp-job-id {
+  font-weight: 700;
+  font-size: 16px;
+  font-family: $sp-mono;
+  color: $sp-brand;
+}
+
+.sp-job-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: $sp-g500;
+
+  &-sep  { color: $sp-border; }
+  &-user { font-weight: 500; color: $sp-g700; }
+}
+.sp-job-spacer { flex: 1; }
+.sp-dismiss-btn { color: $sp-danger !important; }
+
+.sp-job-body {
+  border: 1px solid $sp-border;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 20px;
+  background: $sp-white;
+}

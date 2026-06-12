@@ -1,26 +1,12 @@
 // Wizard step 1 — choose source courses and destination organisations.
 // handleNext cross-joins selected courses × selected orgs into a flat CourseRow[]
 // that StepConfigure receives as its rows prop.
-import { useState, useEffect } from 'react';
-import { Card, Button, Spinner } from '@openedx/paragon';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, Button, Spinner, DataTable } from '@openedx/paragon';
 
 import { stripRunPrefix } from '../../utils/courseKeys';
 import { useCourses, useOrgs, usePrograms } from '../../hooks';
-
-// ─── Design tokens ──────────────────────────────────────────────────────────
-const BRAND     = '#006daa';
-const BRAND_LT  = '#deeef8';
-const BRAND_XLT = '#eef6fb';
-const SUCCESS   = '#178253';
-const G50       = '#f8f9fa';
-const G100      = '#f0f0f0';
-const G200      = '#e0e0e0';
-const G500      = '#6c757d';
-const G700      = '#454545';
-const G900      = '#1f2937';
-const BORDER    = '#dee2e6';
-const WHITE     = '#fff';
-const MONO      = '"SFMono-Regular","Courier New",monospace';
+import './index.scss';
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -43,13 +29,17 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
   const { data: livePrograms = [] } = usePrograms({ enabled: courseDiscoveryEnabled });
 
   // courseKey → program UUID, built from discovery program→courseRun edges
-  const courseKeyToProgId = Object.fromEntries(
-    livePrograms.flatMap(p => p.courseRunKeys.map(k => [k, p.uuid]))
+  const courseKeyToProgId = useMemo(
+    () => Object.fromEntries(livePrograms.flatMap(p => p.courseRunKeys.map(k => [k, p.uuid]))),
+    [livePrograms],
   );
 
   // Program lookup keyed by UUID, sourced entirely from course-discovery
-  const programById = Object.fromEntries(
-    livePrograms.map(p => [p.uuid, { id: p.uuid, shortName: p.title, color: BRAND, colorLt: BRAND_LT }])
+  const programById = useMemo(
+    () => Object.fromEntries(
+      livePrograms.map(p => [p.uuid, { id: p.uuid, shortName: p.title }])
+    ),
+    [livePrograms],
   );
 
   const showPrograms = courseDiscoveryEnabled && livePrograms.length > 0;
@@ -58,7 +48,7 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
   const { data: liveCourses = [], isLoading: coursesLoading, isError: coursesError } =
     useCourses('');
 
-  const courses = liveCourses.map(c => ({
+  const courses = useMemo(() => liveCourses.map(c => ({
     id:       c.courseKey,
     name:     c.displayName,
     org:      c.org,
@@ -68,7 +58,7 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
     shortName: null,
     progId:   courseKeyToProgId[c.courseKey] ?? null,
     isDemo:   false,
-  }));
+  })), [liveCourses, courseKeyToProgId]);
 
   // shortName → display name lookup built from the LMS orgs API
   const orgNameByCode = Object.fromEntries(orgs.map(o => [o.code, o.name]));
@@ -87,15 +77,17 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
     courses.filter(c => !srcOrgFilter || c.org === srcOrgFilter).map(c => c.progId).filter(Boolean)
   );
 
-  // Filtered course list
-  const ql = courseQ.toLowerCase();
-  const filtered = courses.filter(c => {
-    if (srcOrgFilter && c.org !== srcOrgFilter) return false;
-    if (progFilter   && c.progId !== progFilter)  return false;
-    if (ql && !stripRunPrefix(c.name).toLowerCase().includes(ql)
-           && !c.num.toLowerCase().includes(ql))   return false;
-    return true;
-  });
+  // Filtered course list — memoized so DataTable sees a stable reference and doesn't auto-reset selection
+  const filtered = useMemo(() => {
+    const q = courseQ.toLowerCase();
+    return courses.filter(c => {
+      if (srcOrgFilter && c.org !== srcOrgFilter) return false;
+      if (progFilter   && c.progId !== progFilter)  return false;
+      if (q && !stripRunPrefix(c.name).toLowerCase().includes(q)
+             && !c.num.toLowerCase().includes(q))   return false;
+      return true;
+    });
+  }, [courses, srcOrgFilter, progFilter, courseQ]);
 
   // Reset stale program filter when source org changes
   useEffect(() => {
@@ -107,22 +99,65 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
 
   const courseCount  = courseSel.size;
   const destOrgCount = destOrgSel.size;
-  const allChk  = filtered.length > 0 && filtered.every(c => courseSel.has(c.id));
-  const someChk = filtered.some(c => courseSel.has(c.id)) && !allChk;
   const totalRuns = courseCount * Math.max(destOrgCount, 1);
   const canNext   = courseCount > 0 && destOrgCount > 0;
 
-  const toggleCourse = id => setCourseSel(prev => {
-    const n = new Set(prev);
-    if (n.has(id)) { n.delete(id); } else { n.add(id); }
-    return n;
-  });
+  // Incremented to programmatically reset DataTable selection (e.g. Clear button)
+  const [clearKey, setClearKey] = useState(0);
+
+  const handleSelectedRowsChanged = useCallback((selectedRowIds) => {
+    const next = Object.keys(selectedRowIds);
+    setCourseSel(prev => {
+      if (prev.size === next.length && next.every(id => prev.has(id))) return prev;
+      return new Set(next);
+    });
+  }, []);
+
+  const columns = useMemo(() => [
+    ...(showPrograms ? [{
+      Header: 'Program',
+      accessor: 'progId',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const pp = programById[row.original.progId];
+        return pp ? <span className="ss-program-badge">{pp.shortName}</span> : null;
+      },
+    }] : []),
+    {
+      Header: 'Org',
+      accessor: 'org',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <span className="ss-org-badge">{row.original.org}</span>
+      ),
+    },
+    {
+      Header: 'Course name',
+      accessor: 'name',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <span className={`ss-name${row.isSelected ? ' ss-name--sel' : ''}`}>
+          {stripRunPrefix(row.original.name)}
+        </span>
+      ),
+    },
+    {
+      Header: 'Course number',
+      accessor: 'num',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <span className="ss-num">{row.original.num}</span>
+      ),
+    },
+  ], [showPrograms, programById]);
 
   const toggleDestOrg = code => setDestOrgSel(prev => {
     const n = new Set(prev);
     if (n.has(code)) { n.delete(code); } else { n.add(code); }
     return n;
   });
+
+  const clearAll = () => { setClearKey(k => k + 1); setCourseSel(new Set()); setDestOrgSel(new Set()); };
 
   const handleNext = () => {
     const selectedDestOrgs = destOrgs.filter(o => destOrgSel.has(o.code));
@@ -150,15 +185,15 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
     <Card>
       {/* Header */}
       <Card.Section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="ss-header">
           <div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: G900, marginBottom: 2 }}>Source courses</div>
-            <div style={{ fontSize: 13, color: G500 }}>
+            <div className="ss-header-title">Source courses</div>
+            <div className="ss-header-sub">
               Select the DEMO source courses to generate new bulk course reruns from, then choose the destination organizations below.
             </div>
           </div>
           {canNext && (
-            <span style={{ color: BRAND, fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap', marginLeft: 16 }}>
+            <span className="ss-header-count">
               {courseCount} course{courseCount !== 1 ? 's' : ''} x {destOrgCount} org{destOrgCount !== 1 ? 's' : ''} = <strong>{totalRuns}</strong> run{totalRuns !== 1 ? 's' : ''}
             </span>
           )}
@@ -166,64 +201,43 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
       </Card.Section>
 
       {/* Filters row */}
-      <div style={{
-        padding: '12px 20px', display: 'flex', gap: 8, flexWrap: 'wrap',
-        alignItems: 'center', borderTop: '1px solid ' + BORDER,
-        borderBottom: '1px solid ' + BORDER, background: G50,
-      }}>
-        {/* Program dropdown — hidden when discovery is disabled or returns no programs */}
+      <div className="ss-filters">
         {showPrograms && (
           <select
             value={progFilter}
             onChange={e => setProgFilter(e.target.value)}
-            style={{ padding: '7px 10px', fontSize: 13, border: '1px solid ' + BORDER, borderRadius: 4, minWidth: 160 }}
+            className="ss-filter-select"
           >
             <option value="">All programs</option>
-            {Object.values(programById)
-              .map(p => (
-                <option key={p.id} value={p.id}>{p.shortName}</option>
-              ))}
+            {Object.values(programById).map(p => (
+              <option key={p.id} value={p.id}>{p.shortName}</option>
+            ))}
           </select>
         )}
 
-        {/* Source org dropdown */}
         <select
           value={srcOrgFilter}
           onChange={e => setSrcOrgFilter(e.target.value)}
-          style={{ padding: '7px 10px', fontSize: 13, border: '1px solid ' + BORDER, borderRadius: 4, minWidth: 180 }}
+          className="ss-filter-select ss-filter-select--wide"
         >
-          <option value="">All source orgs</option>
+          <option value="">All orgs</option>
           {srcOrgOptions.map(o => (
             <option key={o.code} value={o.code}>{o.name} ({o.code})</option>
           ))}
         </select>
 
-        {/* Text search */}
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+        <div className="ss-search-wrap">
           <input
             value={courseQ}
             onChange={e => setCourseQ(e.target.value)}
             placeholder="Filter by course name or number..."
-            style={{
-              padding: '7px 10px 7px 30px', fontSize: 13,
-              border: '1px solid ' + BORDER, borderRadius: 4, width: '100%', outline: 'none',
-            }}
+            className="ss-search-input"
           />
-          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: G500, pointerEvents: 'none', fontSize: 12 }}>
-            &#128269;
-          </span>
+          <span className="ss-search-icon">&#128269;</span>
         </div>
 
-        <Button variant="outline-primary" size="sm" onClick={() => setCourseSel(new Set(filtered.map(c => c.id)))}>
-          Select all
-        </Button>
         {courseCount > 0 && (
-          <Button
-            variant="tertiary"
-            size="sm"
-            onClick={() => { setCourseSel(new Set()); setDestOrgSel(new Set()); }}
-            style={{ color: '#c32d3a' }}
-          >
+          <Button variant="tertiary" size="sm" onClick={clearAll} className="ss-clear-btn">
             Clear ({courseCount})
           </Button>
         )}
@@ -231,21 +245,11 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
 
       {/* Selection banner */}
       {courseCount > 0 && (
-        <div style={{
-          margin: '10px 20px 0',
-          background: BRAND_LT, border: '1px solid #aad4ef',
-          borderRadius: 4, padding: '7px 14px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13,
-        }}>
-          <span style={{ fontWeight: 600, color: BRAND }}>
+        <div className="ss-banner">
+          <span className="ss-banner-count">
             {courseCount} course{courseCount !== 1 ? 's' : ''} selected
           </span>
-          <Button
-            variant="tertiary"
-            size="sm"
-            onClick={() => { setCourseSel(new Set()); setDestOrgSel(new Set()); }}
-            style={{ color: '#c32d3a' }}
-          >
+          <Button variant="tertiary" size="sm" onClick={clearAll} className="ss-clear-btn">
             Clear
           </Button>
         </div>
@@ -253,179 +257,94 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
 
       {/* Course table */}
       {coursesLoading && (
-        <div style={{ padding: '2.5rem', textAlign: 'center', color: G500 }}>
-          <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
+        <div className="ss-loading">
+          <Spinner animation="border" size="sm" className="me-2" />
           Loading courses…
         </div>
       )}
       {coursesError && (
-        <div style={{ padding: '1rem 20px', color: '#c32d3a', fontSize: 13 }}>
+        <div className="ss-error">
           Failed to load courses. Please refresh and try again.
         </div>
       )}
-      <div style={{ overflowX: 'auto', display: (coursesLoading || coursesError) ? 'none' : undefined }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid ' + BORDER, background: G50 }}>
-              <th style={{ padding: '9px 14px', width: 40 }}>
-                <input
-                  type="checkbox"
-                  checked={allChk}
-                  ref={el => { if (el) el.indeterminate = someChk; }}
-                  onChange={e => {
-                    const ids = filtered.map(c => c.id);
-                    setCourseSel(prev => {
-                      const n = new Set(prev);
-                      ids.forEach(id => (e.target.checked ? n.add(id) : n.delete(id)));
-                      return n;
-                    });
-                  }}
-                  style={{ width: 15, height: 15, accentColor: BRAND, cursor: 'pointer' }}
-                />
-              </th>
-              {showPrograms && (
-                <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700 }}>Program</th>
-              )}
-              <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700 }}>Org</th>
-              <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700 }}>Course name</th>
-              <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700, whiteSpace: 'nowrap' }}>Course number</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td
-                  colSpan={showPrograms ? 5 : 4}
-                  style={{ padding: '2.5rem', textAlign: 'center', color: G500 }}
-                >
-                  No courses match your filters.
-                </td>
-              </tr>
-            )}
-            {filtered.map(c => {
-              const on = courseSel.has(c.id);
-              const pp = programById[c.progId];
-              return (
-                <tr
-                  key={c.id}
-                  onClick={() => toggleCourse(c.id)}
-                  style={{
-                    borderBottom: '1px solid ' + BORDER,
-                    background: on ? BRAND_XLT : WHITE,
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => { if (!on) e.currentTarget.style.background = G50; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = on ? BRAND_XLT : WHITE; }}
-                >
-                  <td style={{ padding: '9px 14px' }}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      readOnly
-                      style={{ width: 15, height: 15, accentColor: BRAND, pointerEvents: 'none' }}
-                    />
-                  </td>
-                  {showPrograms && (
-                    <td style={{ padding: '9px 14px' }}>
-                      {pp && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, padding: '2px 8px',
-                          borderRadius: 12, background: pp.colorLt, color: pp.color,
-                        }}>
-                          {pp.shortName}
-                        </span>
-                      )}
-                    </td>
-                  )}
-                  <td style={{ padding: '9px 14px', fontSize: 12 }}>
-                    <span style={{ background: '#e8f5e9', color: SUCCESS, padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: MONO }}>
-                      {c.org}
-                    </span>
-                  </td>
-                  <td style={{ padding: '9px 14px', fontWeight: on ? 600 : 400 }}>
-                    {stripRunPrefix(c.name)}
-                  </td>
-                  <td style={{ padding: '9px 14px', fontFamily: MONO, fontSize: 12 }}>{c.num}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Table footer */}
-      <div style={{
-        padding: '7px 14px', borderTop: '1px solid ' + BORDER,
-        fontSize: 12, color: G500, display: 'flex', justifyContent: 'space-between',
-      }}>
-        <span>
-          {'Showing ' + filtered.length + ' courses'}
-          {filtered.length !== courses.length ? ' of ' + courses.length : ''}
-        </span>
-        <span>{courseCount} selected</span>
-      </div>
+      {!coursesLoading && !coursesError && (
+        <>
+          <div className="ss-course-table">
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+            <div
+              onClick={(e) => {
+                const tr = e.target.closest('tr.pgn__data-table-row');
+                if (!tr) return;
+                if (e.target.type === 'checkbox' || e.target.closest('label')) return;
+                const cb = tr.querySelector('input[type="checkbox"]');
+                if (cb) cb.click();
+              }}
+            >
+              <DataTable
+                key={srcOrgFilter + '-' + clearKey}
+                isSelectable
+                columns={columns}
+                data={filtered}
+                itemCount={filtered.length}
+                onSelectedRowsChanged={handleSelectedRowsChanged}
+                initialTableOptions={{ getRowId: row => row.id, autoResetSelectedRows: false }}
+              >
+                <DataTable.Table isStriped={false} />
+                <DataTable.EmptyTable content="No courses match your filters." />
+              </DataTable>
+            </div>
+          </div>
+          <div className="ss-table-footer">
+            <span>
+              {'Showing ' + filtered.length + ' course' + (filtered.length !== 1 ? 's' : '')}
+              {filtered.length !== courses.length ? ' of ' + courses.length : ''}
+            </span>
+            <span>{courseCount} selected</span>
+          </div>
+        </>
+      )}
 
       {/* Destination orgs */}
       {courseCount > 0 && (
-        <div style={{ borderTop: '2px solid ' + BORDER, padding: '16px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div className="ss-dest">
+          <div className="ss-dest-header">
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: G900, marginBottom: 2 }}>Destination organizations</div>
-              <div style={{ fontSize: 12, color: G500 }}>Each selected course will be rerun for every checked organization.</div>
+              <div className="ss-dest-title">Destination organizations</div>
+              <div className="ss-dest-sub">Each selected course will be rerun for every checked organization.</div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="ss-dest-btns">
               <Button variant="outline-primary" size="sm" onClick={() => setDestOrgSel(new Set(destOrgs.map(o => o.code)))}>All</Button>
               {destOrgCount > 0 && (
-                <Button variant="tertiary" size="sm" onClick={() => setDestOrgSel(new Set())} style={{ color: '#c32d3a' }}>Clear</Button>
+                <Button variant="tertiary" size="sm" onClick={() => setDestOrgSel(new Set())} className="ss-clear-btn">Clear</Button>
               )}
             </div>
           </div>
 
           {orgsLoading && (
-            <div style={{ padding: '1.5rem', textAlign: 'center', color: G500, fontSize: 13 }}>
-              <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
+            <div className="ss-loading ss-loading--sm">
+              <Spinner animation="border" size="sm" className="me-2" />
               Loading organizations…
             </div>
           )}
           {orgsError && (
-            <div style={{ padding: '0.5rem 0', color: '#c32d3a', fontSize: 13 }}>
+            <div className="ss-error ss-error--sm">
               Failed to load organizations. Please refresh and try again.
             </div>
           )}
           {!orgsLoading && !orgsError && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8 }}>
+            <div className="ss-org-grid">
               {destOrgs.map(o => {
                 const on = destOrgSel.has(o.code);
                 return (
                   <div
                     key={o.code}
                     onClick={() => toggleDestOrg(o.code)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '9px 12px',
-                      border: '1px solid ' + (on ? BRAND : BORDER),
-                      borderRadius: 4, cursor: 'pointer',
-                      background: on ? BRAND_XLT : WHITE,
-                      transition: 'all .12s',
-                    }}
-                    onMouseEnter={e => { if (!on) e.currentTarget.style.background = G50; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = on ? BRAND_XLT : WHITE; }}
+                    className={`ss-org-item${on ? ' ss-org-item--selected' : ''}`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      readOnly
-                      style={{ width: 14, height: 14, accentColor: BRAND, pointerEvents: 'none', flexShrink: 0 }}
-                    />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{
-                        fontWeight: on ? 600 : 400, fontSize: 13,
-                        color: on ? BRAND : G900,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>
-                        {o.name}
-                      </div>
-                      <div style={{ fontSize: 11, color: G500, fontFamily: MONO }}>{o.code}</div>
+                    <input type="checkbox" checked={on} readOnly />
+                    <div className="ss-org-inner">
+                      <div className="ss-org-item-name">{o.name}</div>
+                      <div className="ss-org-item-code">{o.code}</div>
                     </div>
                   </div>
                 );
@@ -436,25 +355,20 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
       )}
 
       {/* Bottom action bar */}
-      <div style={{
-        padding: '14px 20px', borderTop: '1px solid ' + BORDER,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: G50,
-      }}>
-        <span style={{ fontSize: 13 }}>
-          {canNext
-            ? (
-              <strong style={{ color: BRAND }}>
-                {courseCount} course{courseCount !== 1 ? 's' : ''} x {destOrgCount} org{destOrgCount !== 1 ? 's' : ''} = {totalRuns} run{totalRuns !== 1 ? 's' : ''} will be configured
-              </strong>
-            )
-            : (
-              <span style={{ color: G500 }}>
-                {courseCount === 0
-                  ? 'Select source courses above to continue'
-                  : 'Select destination organizations above to continue'}
-              </span>
-            )}
-        </span>
+      <div className="ss-action-bar">
+        {canNext
+          ? (
+            <strong className="ss-action-active">
+              {courseCount} course{courseCount !== 1 ? 's' : ''} x {destOrgCount} org{destOrgCount !== 1 ? 's' : ''} = {totalRuns} run{totalRuns !== 1 ? 's' : ''} will be configured
+            </strong>
+          )
+          : (
+            <span className="ss-action-hint">
+              {courseCount === 0
+                ? 'Select source courses above to continue'
+                : 'Select destination organizations above to continue'}
+            </span>
+          )}
         <Button variant="primary" disabled={!canNext} onClick={handleNext}>
           Configure
         </Button>

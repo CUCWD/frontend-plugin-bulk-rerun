@@ -1,0 +1,286 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$ss-brand:     #006daa;
+$ss-brand-lt:  #deeef8;
+$ss-brand-xlt: #eef6fb;
+$ss-success:   #178253;
+$ss-danger:    #c32d3a;
+$ss-g50:       #f8f9fa;
+$ss-g500:      #6c757d;
+$ss-g900:      #1f2937;
+$ss-border:    #dee2e6;
+$ss-mono:      "SFMono-Regular", "Courier New", monospace;
+
+// ── Card header ───────────────────────────────────────────────────────────────
+.ss-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ss-header-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: $ss-g900;
+  margin-bottom: 2px;
+}
+
+.ss-header-sub {
+  font-size: 14px;
+  color: $ss-g500;
+}
+
+.ss-header-count {
+  color: $ss-brand;
+  font-weight: 500;
+  font-size: 14px;
+  white-space: nowrap;
+  margin-left: 16px;
+}
+
+// ── Filters row ───────────────────────────────────────────────────────────────
+.ss-filters {
+  padding: 12px 20px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-top: 1px solid $ss-border;
+  border-bottom: 1px solid $ss-border;
+  background: $ss-g50;
+}
+
+.ss-filter-select {
+  padding: 7px 10px;
+  font-size: 16px;
+  border: 1px solid $ss-border;
+  border-radius: 4px;
+  min-width: 160px;
+}
+
+.ss-filter-select--wide { min-width: 180px; }
+
+.ss-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.ss-search-input {
+  padding: 7px 10px 7px 30px;
+  font-size: 16px;
+  border: 1px solid $ss-border;
+  border-radius: 4px;
+  width: 100%;
+  outline: none;
+}
+
+.ss-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: $ss-g500;
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.ss-clear-btn { color: $ss-danger !important; }
+
+// ── Selection banner ──────────────────────────────────────────────────────────
+.ss-banner {
+  margin: 10px 20px 0;
+  background: $ss-brand-lt;
+  border: 1px solid #aad4ef;
+  border-radius: 4px;
+  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.ss-banner-count {
+  font-weight: 600;
+  color: $ss-brand;
+}
+
+// ── Loading / error states ────────────────────────────────────────────────────
+.ss-loading {
+  padding: 2.5rem;
+  text-align: center;
+  color: $ss-g500;
+  font-size: 14px;
+
+  &--sm {
+    padding: 1.5rem;
+    text-align: center;
+    color: $ss-g500;
+    font-size: 14px;
+  }
+}
+
+.ss-error {
+  padding: 1rem 20px;
+  color: $ss-danger;
+  font-size: 14px;
+
+  &--sm {
+    padding: 0.5rem 0;
+    color: $ss-danger;
+    font-size: 14px;
+  }
+}
+
+// ── Course DataTable overrides ────────────────────────────────────────────────
+.ss-course-table {
+  // Remove injected <style> tag — handle cursor and selection colour here
+  .pgn__data-table-row         { cursor: pointer; }
+  .pgn__data-table-row.is-selected { background-color: $ss-brand-xlt !important; }
+  .pgn__data-table-row td      { border-bottom: 1px solid $ss-border; }
+
+  // Match StepConfigure cell sizing conventions
+  .pgn__data-table td {
+    padding: 8px 12px;
+    vertical-align: middle;
+    font-size: 15px;
+  }
+
+  .pgn__data-table thead th {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+// ── Cell content helpers ──────────────────────────────────────────────────────
+.ss-org-badge {
+  display: inline-block;
+  background: #e8f5e9;
+  color: $ss-success;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: $ss-mono;
+}
+
+.ss-program-badge {
+  display: inline-block;
+  background: $ss-brand-lt;
+  color: $ss-brand;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.ss-name         { font-size: 15px; }
+.ss-name--sel    { font-weight: 600; }
+.ss-num          { font-family: $ss-mono; font-size: 15px; }
+
+// ── Table footer ──────────────────────────────────────────────────────────────
+.ss-table-footer {
+  padding: 7px 14px;
+  border-top: 1px solid $ss-border;
+  font-size: 14px;
+  color: $ss-g500;
+  display: flex;
+  justify-content: space-between;
+}
+
+// ── Destination organizations ─────────────────────────────────────────────────
+.ss-dest {
+  border-top: 2px solid $ss-border;
+  padding: 16px 20px;
+}
+
+.ss-dest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ss-dest-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: $ss-g900;
+  margin-bottom: 2px;
+}
+
+.ss-dest-sub {
+  font-size: 14px;
+  color: $ss-g500;
+}
+
+.ss-dest-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.ss-org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.ss-org-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid $ss-border;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color .12s, background .12s;
+
+  &:hover { background: $ss-g50; }
+
+  input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: $ss-brand;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  &--selected {
+    border-color: $ss-brand;
+    background: $ss-brand-xlt;
+
+    &:hover { background: $ss-brand-xlt; }
+  }
+}
+
+.ss-org-inner { min-width: 0; }
+
+.ss-org-item-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: $ss-g900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .ss-org-item--selected & { font-weight: 600; color: $ss-brand; }
+}
+
+.ss-org-item-code {
+  font-size: 13px;
+  color: $ss-g500;
+  font-family: $ss-mono;
+}
+
+// ── Bottom action bar ─────────────────────────────────────────────────────────
+.ss-action-bar {
+  padding: 14px 20px;
+  border-top: 1px solid $ss-border;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: $ss-g50;
+}
+
+.ss-action-hint   { font-size: 14px; color: $ss-g500; }
+.ss-action-active { font-size: 14px; font-weight: 500; color: $ss-brand; }

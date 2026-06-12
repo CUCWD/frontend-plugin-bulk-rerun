@@ -1,53 +1,46 @@
 // Inline-editable run-ID cell for the course table in StepConfigure.
 // Must be defined OUTSIDE StepConfigure so React sees a stable component reference
 // across renders — defining it inside would remount on every render, destroying focus.
-// Auto-sizes its input width via canvas text measurement so the field hugs its content.
+// On focus the input expands to show all content; on blur it collapses to column width.
 import { useState } from 'react';
-
-const BRAND = '#006daa';
-const BRAND_LT = '#deeef8';
-const DANGER = '#c32d3a';
-const DANGER_BG = '#fdf0f1';
-const MONO = '"SFMono-Regular","Courier New",monospace';
+import { RUN_ID_RE } from '../../utils/courseKeys';
+import './EditableRunCell.scss';
 
 const _canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 function measureText(text) {
   if (!_canvas) return 80;
   const ctx = _canvas.getContext('2d');
-  ctx.font = '12px SFMono-Regular, Courier New, monospace';
+  ctx.font = '15px SFMono-Regular, Courier New, monospace';
   return Math.ceil(ctx.measureText(text).width);
-}
-export function runCellWidth(value) {
-  return Math.min(220, Math.max(80, measureText(String(value)) + 16));
 }
 
 export default function EditableRunCell({ value, onChange, hasError = false }) {
   const [focused, setFocused] = useState(false);
-  const w = runCellWidth(value);
 
-  const baseBorder = hasError ? '1px solid ' + DANGER : '1px solid transparent';
-  const focusBorder = hasError ? '1px solid ' + DANGER : '1px solid ' + BRAND;
-  const baseBg = hasError ? DANGER_BG : 'transparent';
+  const hasInvalidChars = value.length > 0 && !RUN_ID_RE.test(value);
+  const showError = hasError || hasInvalidChars;
+
+  // When focused, break out of the fixed-layout table column by switching to
+  // position:absolute so the input is not clipped to the cell's fixed width.
+  const inputStyle = focused
+    ? {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        height: '100%',
+        width: Math.max(80, measureText(String(value)) + 24),
+        zIndex: 10,
+      }
+    : {};
 
   return (
     <input
+      className={`erc-input${showError ? ' has-error' : ''}${focused ? ' erc-input--expanded' : ''}`}
       value={value}
       onChange={e => onChange(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      style={{
-        border: focused ? focusBorder : baseBorder,
-        borderRadius: 3,
-        padding: '4px 6px',
-        fontSize: 12,
-        fontFamily: MONO,
-        color: hasError ? DANGER : '#1f2937',
-        background: focused ? '#fff' : baseBg,
-        width: w,
-        outline: 'none',
-        boxShadow: focused ? ('0 0 0 2px ' + (hasError ? DANGER_BG : BRAND_LT)) : 'none',
-        transition: 'border .12s, box-shadow .12s',
-      }}
+      style={inputStyle}
     />
   );
 }

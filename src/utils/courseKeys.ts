@@ -7,11 +7,14 @@ export const makeKey = (org: string, num: string, run: string) =>
 
 export const RUN_ID_RE = /^[A-Za-z0-9_\-~.]+$/;
 
+// Open edX platform enforces that org + course_number + run combined ≤ 65 chars.
+export const COURSE_ID_MAX_COMBINED = 65;
+
 export function validateRunId(id: string, maxLen = 100): { ok: boolean; msg: string } {
   if (!id?.trim())         return { ok: false, msg: 'Run identifier is required' };
   if (!RUN_ID_RE.test(id)) return { ok: false, msg: 'Invalid characters - allowed: letters, digits, _ - ~ .' };
   if (id.length > maxLen)  return { ok: false, msg: `Too long - max ${maxLen} chars` };
-  return { ok: true, msg: 'Valid edx-platform run identifier' };
+  return { ok: true, msg: 'Valid course run identifier' };
 }
 
 export const courseRunPrefix = (run: string): string => {

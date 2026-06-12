@@ -47,7 +47,7 @@ function Stepper({ steps, cur }) {
               }}>
                 {i + 1}
               </div>
-              <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, whiteSpace: 'nowrap', color: done ? SUCCESS : active ? BRAND : G500 }}>
+              <span style={{ fontSize: 16, fontWeight: active ? 600 : 400, whiteSpace: 'nowrap', color: done ? SUCCESS : active ? BRAND : G500 }}>
                 {s}
               </span>
             </div>
@@ -63,8 +63,7 @@ function Stepper({ steps, cur }) {
 
 // ── Inner component (inside QueryClientProvider) ───────────────────────────────
 function BulkRerunsTabInner() {
-  const topRef        = useRef(null);
-  const jobCounterRef = useRef(1000);
+  const topRef = useRef(null);
 
   const scrollToTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth' });
 
@@ -81,6 +80,8 @@ function BulkRerunsTabInner() {
     cfg,            setCfg,
     viewingEntry,   setViewingEntry,
     addActiveJob,
+    removeActiveJob,
+    updateActiveJobBatchId,
     setRunActive,
     softReset,
     saveHistory,
@@ -102,13 +103,14 @@ function BulkRerunsTabInner() {
     scrollToTop();
   };
 
-  const handleStepReviewSubmit = (mode, batchId) => {
-    const newJobId = ++jobCounterRef.current;
+  const handleStepReviewSubmit = (mode) => {
+    const tempId = Date.now().toString(36).slice(-6).toUpperCase();
     addActiveJob({
-      id:        newJobId,
+      id:        tempId,
       cfg,
       isDry:     mode === 'preview',
-      batchId:   batchId ?? null,
+      batchId:   null,
+      isPending: true,
       createdAt: new Date().toISOString(),
       createdBy: currentUser,
     });
@@ -117,6 +119,7 @@ function BulkRerunsTabInner() {
     setBulkView('tracking');
     setTrackingSubTab('current');
     scrollToTop();
+    return tempId;
   };
 
   const BULK_VIEWS = [
@@ -147,7 +150,7 @@ function BulkRerunsTabInner() {
               onClick={() => setBulkView(v.id)}
               style={{
                 padding: '11px 18px', cursor: 'pointer', userSelect: 'none',
-                fontSize: 13, fontWeight: 500,
+                fontSize: 16, fontWeight: 500,
                 borderBottom: '3px solid ' + (active ? BRAND : 'transparent'),
                 color: active ? BRAND : G700,
                 transition: 'color .12s',
@@ -189,6 +192,8 @@ function BulkRerunsTabInner() {
               cfg={cfg || defaultCfg}
               onBack={() => { setStep(1); scrollToTop(); }}
               onSubmit={handleStepReviewSubmit}
+              onBatchReady={(tempId, batchId) => updateActiveJobBatchId(tempId, batchId)}
+              onBatchFailed={(tempId) => removeActiveJob(tempId)}
             />
           )}
         </>
@@ -210,7 +215,7 @@ function BulkRerunsTabInner() {
                   onClick={() => { setTrackingSubTab(t.id); setViewingEntry(null); }}
                   style={{
                     padding: '10px 16px', cursor: 'pointer', userSelect: 'none',
-                    fontSize: 13, fontWeight: 500,
+                    fontSize: 14, fontWeight: 500,
                     borderBottom: '3px solid ' + (active ? BRAND : 'transparent'),
                     color: active ? BRAND : G700,
                     transition: 'color .12s',
@@ -249,6 +254,7 @@ function BulkRerunsTabInner() {
                   <JobProgress
                     cfg={viewingEntry.cfg}
                     jobId={viewingEntry.id}
+                    batchId={viewingEntry.batchId ?? null}
                     isDryRun={viewingEntry.isDryRun}
                     historyEntry={viewingEntry}
                     createdBy={viewingEntry.createdBy}

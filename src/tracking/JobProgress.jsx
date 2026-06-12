@@ -31,28 +31,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Alert, Spinner, ProgressBar, Badge } from '@openedx/paragon';
 
-import { useBatch } from '../hooks';
+import { useBatch, useJobLogs } from '../hooks';
 import { makeKey } from '../utils/courseKeys';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const BRAND    = '#006daa';
-const BRAND_DK = '#004f80';
-const BRAND_LT = '#deeef8';
-const BRAND_XLT = '#eef6fb';
-const SUCCESS  = '#178253';
-const PURPLE   = '#6f42c1';
-const PURPLE_BG = '#f3f0ff';
-const G50      = '#f8f9fa';
-const G300     = '#c8c8c8';
-const G500     = '#6c757d';
-const G700     = '#454545';
-const G900     = '#1f2937';
-const BORDER   = '#dee2e6';
-const WHITE    = '#fff';
-const MONO     = '"SFMono-Regular","Courier New",monospace';
-const FONT     = '"Open Sans",system-ui,sans-serif';
+import './JobProgress.scss';
 
 // ── Simulation log sequences (DEMO mode only) ─────────────────────────────────
 const ORG_REG_LOGS = [
@@ -95,10 +78,8 @@ const PROGRAM_LOGS = [
 
 const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_e) { return iso || ''; } };
 
-// MODE label map — hoisted to avoid object-literal subscript inline in JSX
 const MODE_LBL = { program: 'By Program', neworg: 'New Organization', course: 'By Individual Course' };
 
-// Maps API status strings ('succeeded', 'running', …) to the component's internal format.
 const mapApiStatus = (s) => {
   if (s === 'succeeded') return 'success';
   if (s === 'failed')    return 'failed';
@@ -106,11 +87,29 @@ const mapApiStatus = (s) => {
   return 'pending';
 };
 
+// ── Per-job log streamer ───────────────────────────────────────────────────────
+// Renders nothing — polls GET /jobs/:jobId/logs/ every 2 s and pushes
+// parsed log lines to the parent via onLogs whenever the response changes.
+function CourseJobLogStream({ jobId, onLogs }) {
+  const { data } = useJobLogs(jobId);
+  useEffect(() => {
+    if (!Array.isArray(data?.logs)) return;
+    const mapped = data.logs.map(l => ({
+      lv:  l.level,
+      msg: l.message,
+      ts:  new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+    }));
+    onLogs(jobId, mapped);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function JobProgress({
   cfg,
   jobId,
-  batchId,      // real API batch ID (string); when provided, real polling replaces simulation
+  batchId,
+  isPending,
   isDryRun,
   createdBy,
   createdAt,
@@ -133,7 +132,6 @@ export default function JobProgress({
 
   const [copied, setCopied] = useState(false);
 
-  // ── Initialise items for each phase ────────────────────────────────────────
   const initReg = useCallback(() => {
     if (historyEntry) return [];
     return isNewOrg
@@ -188,41 +186,49 @@ export default function JobProgress({
   const [courseItems, setCourseItems] = useState(initCourse);
   const [discItems,   setDiscItems]   = useState(initDisc);
   const [progItems,   setProgItems]   = useState(initProgItems);
-  // Phase initial value: historyEntry → 4, isNewOrg → 0, else → 1
   const [phase,       setPhase]       = useState(historyEntry ? 4 : isNewOrg ? 0 : 1);
   const [openCOrg,    setOpenCOrg]    = useState(() => Object.fromEntries(orgs.map(o => [o, true])));
 
   const booted = useRef(false);
 
-  // ── Mode flags ─────────────────────────────────────────────────────────────
   const isRealMode = !!batchId && !historyEntry;
-  const isSimMode  = !batchId && !historyEntry;
+  // Simulation only runs when there is no real batchId and no pending API call.
+  const isSimMode  = !batchId && !historyEntry && !isPending;
 
-  // ── Real API polling ───────────────────────────────────────────────────────
-  // useBatch is always called (React hook rules); it is self-disabled when
-  // batchId is falsy (enabled: !!batchId inside the hook).
   const batchQuery = useBatch(batchId || null);
 
-  // Sync each poll tick → component state
   useEffect(() => {
     if (!isRealMode || !batchQuery.data) return;
     const batch = batchQuery.data;
 
-    // Advance the active phase indicator
     if (typeof batch.phase === 'number') setPhase(batch.phase);
 
-    // Update course item statuses and log lines
     if (Array.isArray(batch.jobs) && batch.jobs.length > 0) {
       setCourseItems(prev => prev.map((item, i) => {
         const job = batch.jobs[i];
         if (!job) return item;
-        const status = mapApiStatus(job.status);
-        const logs = Array.isArray(job.logs) && job.logs.length > 0 ? job.logs : item.logs;
-        return { ...item, status, logs, elapsed: job.elapsed || item.elapsed };
+        const apiStatus = mapApiStatus(job.status);
+        const elapsed   = job.elapsed_seconds != null
+          ? job.elapsed_seconds.toFixed(1) + 's'
+          : item.elapsed;
+        // Prefer logs from the batch API response (added via jobs__logs prefetch);
+        // fall back to whatever CourseJobLogStream has already streamed.
+        const apiLogs = Array.isArray(job.logs) && job.logs.length > 0
+          ? job.logs.map(l => ({
+              lv:  l.level,
+              msg: l.message,
+              ts:  new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+            }))
+          : null;
+        // Surface error_message as a fallback log line for failed jobs with no logs.
+        const errorLog = !apiLogs && job.error_message && apiStatus === 'failed'
+          ? [{ lv: 'error', msg: job.error_message, ts: '--' }]
+          : [];
+        const logs = apiLogs || (errorLog.length > 0 ? errorLog : item.logs);
+        return { ...item, status: apiStatus, jobId: job.id, elapsed, logs };
       }));
     }
 
-    // Update org registration items (phase 0, new-org mode)
     if (Array.isArray(batch.reg_items) && batch.reg_items.length > 0) {
       setRegItems(prev => prev.map((item, i) => {
         const ri = batch.reg_items[i];
@@ -235,7 +241,6 @@ export default function JobProgress({
       }));
     }
 
-    // Update discovery sync items (phase 2)
     if (Array.isArray(batch.disc_items) && batch.disc_items.length > 0) {
       setDiscItems(prev => prev.map((item, i) => {
         const di = batch.disc_items[i];
@@ -248,7 +253,6 @@ export default function JobProgress({
       }));
     }
 
-    // Update program linking items (phase 3)
     if (Array.isArray(batch.prog_items) && batch.prog_items.length > 0) {
       setProgItems(prev => prev.map((item, i) => {
         const pi = batch.prog_items[i];
@@ -262,12 +266,15 @@ export default function JobProgress({
     }
   }, [batchQuery.data, isRealMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Derived counts ─────────────────────────────────────────────────────────
-  // In real mode, completion is determined by the batch-level API status so the
-  // save-to-history effect fires reliably even if a sync tick is still in flight.
   const batchDone = isRealMode
     ? !!batchQuery.data && ['succeeded', 'failed', 'partial'].includes(batchQuery.data.status)
     : courseItems.every(it => it.status === 'success' || it.status === 'failed');
+
+  // All course items are in a terminal local state. In real mode this lags one
+  // render behind batchDone (the data effect must run first); using both guards
+  // ensures onSaveHistory sees the correct per-job statuses.
+  const coursesDone = courseItems.every(it => it.status === 'success' || it.status === 'failed');
+  const readyToSave = batchDone && coursesDone;
 
   const batchFail = courseItems.filter(it => it.status === 'failed').length;
 
@@ -283,12 +290,12 @@ export default function JobProgress({
     cDone === courseItems.length &&
     (!courseDiscoveryEnabled || (dDone === discItems.length && pDone === progItems.length));
 
-  // ── Save to history when batch completes ───────────────────────────────────
   useEffect(() => {
-    if (!batchDone || historyEntry) return;
+    if (!readyToSave || historyEntry) return;
     if (!isDryRun && onSaveHistory) {
       onSaveHistory({
         id:        String(jobId),
+        batchId:   batchId ?? null,
         createdAt: createdAt || new Date().toISOString(),
         createdBy: createdBy || '-',
         mode:      fromMode,
@@ -313,11 +320,30 @@ export default function JobProgress({
       });
     }
     if (onComplete) onComplete();
-  }, [batchDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readyToSave]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When viewing a history entry that has a batchId, fetch live log data from the
+  // API and overlay it onto the already-initialised courseItems. This handles both
+  // entries saved before logs were included in the history payload and entries where
+  // the API returned richer log data than what was captured at save time.
+  useEffect(() => {
+    if (!historyEntry || !batchQuery.data) return;
+    const batch = batchQuery.data;
+    if (!Array.isArray(batch.jobs) || batch.jobs.length === 0) return;
+    setCourseItems(prev => prev.map((item, i) => {
+      const job = batch.jobs[i];
+      if (!job || !Array.isArray(job.logs) || job.logs.length === 0) return item;
+      const liveLogs = job.logs.map(l => ({
+        lv:  l.level,
+        msg: l.message,
+        ts:  new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+      }));
+      return { ...item, logs: liveLogs };
+    }));
+  }, [batchQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ts = () => new Date().toLocaleTimeString('en-US', { hour12: false });
 
-  // ── Generic item runner — DEMO simulation only ────────────────────────────
   const runItem = useCallback((seq, setFn, onAllDone, listIdx) => item => {
     const pad   = isDryRun ? s => '[DRY-RUN] ' + s : s => s;
     const subst = s => s.replace('{code}', item.code || item.org || '').replace('{name}', item.name || '');
@@ -344,7 +370,6 @@ export default function JobProgress({
     }, d + (listIdx || 0) * 350));
   }, [isDryRun]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Boot once: start first simulation phase (DEMO mode only) ──────────────
   useEffect(() => {
     if (!isSimMode) return;
     if (booted.current) return;
@@ -360,9 +385,8 @@ export default function JobProgress({
         );
       }
     }, 400);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSimMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 0→1 transition: start courses after org registration (DEMO mode only)
   useEffect(() => {
     if (!isSimMode) return;
     if (phase === 1 && booted.current && isNewOrg) {
@@ -372,17 +396,16 @@ export default function JobProgress({
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // All courses done → advance to discovery (DEMO mode only)
   const cDoneCount = courseItems.filter(i => i.status === 'success').length;
   useEffect(() => {
-    if (!isSimMode) return;
+    if (historyEntry) return;
     if (cDoneCount > 0 && cDoneCount === courseItems.length && phase === 1) {
       if (courseDiscoveryEnabled) setTimeout(() => setPhase(2), 600);
     }
   }, [cDoneCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isSimMode) return;
+    if (historyEntry) return;
     if (phase === 2 && courseDiscoveryEnabled) {
       discItems.slice(0, 2).forEach((it, i) =>
         setTimeout(() => runItem(DISCOVERY_LOGS, setDiscItems, () => setPhase(3), i)(it), i * 400)
@@ -391,7 +414,7 @@ export default function JobProgress({
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isSimMode) return;
+    if (historyEntry) return;
     if (phase === 3 && courseDiscoveryEnabled) {
       progItems.slice(0, 2).forEach((it, i) =>
         setTimeout(() => runItem(PROGRAM_LOGS, setProgItems, null, i)(it), i * 400)
@@ -399,7 +422,6 @@ export default function JobProgress({
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Export helpers ────────────────────────────────────────────────────────
   const buildExport = () => {
     const modeLabel  = MODE_LBL[fromMode] || fromMode;
     const progLabel  = prog ? (prog.icon || '') + ' ' + prog.name : 'Mixed / Individual';
@@ -440,26 +462,16 @@ export default function JobProgress({
     }).catch(() => {});
   };
 
-  // ── Stat card data — hoisted, no inline object ─────────────────────────────
+  // Stat card colors are per-card dynamic values — kept as inline style
   const statCards = [
-    ...(isNewOrg ? [{ l: 'Orgs registered', v: rDone + '/' + regItems.length,                c: rDone === regItems.length ? PURPLE   : phase === 0 ? BRAND : G300 }] : []),
-    {              l: 'Courses created',   v: cDone + '/' + courseItems.length,               c: cDone === courseItems.length ? SUCCESS : phase >= 1 ? BRAND : G300 },
+    ...(isNewOrg ? [{ l: 'Orgs registered', v: rDone + '/' + regItems.length,                c: rDone === regItems.length ? '#6f42c1' : phase === 0 ? '#006daa' : '#c8c8c8' }] : []),
+    {              l: 'Courses created',   v: cDone + '/' + courseItems.length,               c: cDone === courseItems.length ? '#178253' : phase >= 1 ? '#006daa' : '#c8c8c8' },
     {              l: 'Discovery synced',  v: courseDiscoveryEnabled ? (dDone + '/' + discItems.length) : 'Skipped',
-                   c: !courseDiscoveryEnabled ? G300 : dDone === discItems.length && phase >= 2 ? SUCCESS : phase >= 2 ? BRAND : G300 },
+                   c: !courseDiscoveryEnabled ? '#c8c8c8' : dDone === discItems.length && phase >= 2 ? '#178253' : phase >= 2 ? '#006daa' : '#c8c8c8' },
     {              l: 'Programs linked',   v: courseDiscoveryEnabled ? (pDone + '/' + progItems.length) : 'Skipped',
-                   c: !courseDiscoveryEnabled ? G300 : pDone === progItems.length && phase >= 3 ? SUCCESS : phase >= 3 ? BRAND : G300 },
-    {              l: 'Orgs complete',     v: allComplete ? String(orgs.length) : '-',         c: allComplete ? SUCCESS : G500 },
+                   c: !courseDiscoveryEnabled ? '#c8c8c8' : pDone === progItems.length && phase >= 3 ? '#178253' : phase >= 3 ? '#006daa' : '#c8c8c8' },
+    {              l: 'Orgs complete',     v: allComplete ? String(orgs.length) : '-',         c: allComplete ? '#178253' : '#6c757d' },
   ];
-
-  // ── Real mode: loading and error states ───────────────────────────────────
-  if (isRealMode && batchQuery.isLoading && !batchQuery.data) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: G500, fontFamily: FONT }}>
-        <Spinner animation="border" size="sm" style={{ marginRight: 8 }} />
-        Connecting to batch API...
-      </div>
-    );
-  }
 
   if (isRealMode && batchQuery.isError) {
     return (
@@ -473,51 +485,71 @@ export default function JobProgress({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
+      {/* One log streamer per course job in real mode — renders null, drives log state */}
+      {isRealMode && courseItems.map(item =>
+        item.jobId ? (
+          <CourseJobLogStream
+            key={item.jobId}
+            jobId={item.jobId}
+            onLogs={(id, logs) => setCourseItems(prev =>
+              prev.map(it => it.jobId === id ? { ...it, logs } : it)
+            )}
+          />
+        ) : null
+      )}
+
       {isDryRun && (
         <Alert variant="info" className="mb-3 py-2">
-          <strong style={{ display: 'block', marginBottom: 2 }}>Dry-run mode - no changes were made</strong>
+          <strong className="jp-alert-title">Dry-run mode - no changes were made</strong>
           All steps validated. Click Execute to apply changes.
         </Alert>
       )}
       {!courseDiscoveryEnabled && (
         <Alert variant="warning" className="mb-3 py-2">
-          <strong style={{ display: 'block', marginBottom: 2 }}>Course Discovery not enabled - phases 2 and 3 skipped</strong>
+          <strong className="jp-alert-title">Course Discovery not enabled - phases 2 and 3 skipped</strong>
           Only course creation, certificates, and team access will be applied.
         </Alert>
       )}
       {isNewOrg && (
         <Alert variant="primary" className="mb-3 py-2">
-          <strong style={{ display: 'block', marginBottom: 2 }}>New organization onboarding in progress</strong>
+          <strong className="jp-alert-title">New organization onboarding in progress</strong>
           Organizations are being registered before course creation begins.
         </Alert>
       )}
 
       {prog && (
-        <div style={{ marginBottom: 14, padding: '10px 14px', background: isNewOrg ? PURPLE_BG : (prog.colorLt || BRAND_LT), border: '1px solid ' + (isNewOrg ? PURPLE : (prog.color || BRAND)) + '44', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-          {prog.icon && <span style={{ fontSize: 20 }}>{prog.icon}</span>}
-          <div style={{ fontWeight: 600, fontSize: 14, color: isNewOrg ? PURPLE : (prog.color || BRAND), display: 'flex', alignItems: 'center', gap: 8 }}>
-            {prog.name + ' - Job #BR-' + jobId}
-            {isDryRun && (
-              <Badge variant="info" pill style={{ fontSize: 11, lineHeight: 1.5 }}>DRY-RUN</Badge>
-            )}
-            {isNewOrg && (
-              <Badge variant="primary" pill style={{ fontSize: 11, lineHeight: 1.5 }}>New org onboarding</Badge>
-            )}
+        <div
+          className="jp-prog-banner"
+          style={{
+            background: isNewOrg ? '#f3f0ff' : (prog.colorLt || '#deeef8'),
+            border: '1px solid ' + (isNewOrg ? '#6f42c1' : (prog.color || '#006daa')) + '44',
+          }}
+        >
+          {prog.icon && <span className="jp-prog-icon">{prog.icon}</span>}
+          <div className="jp-prog-title" style={{ color: isNewOrg ? '#6f42c1' : (prog.color || '#006daa') }}>
+            {prog.name + ' - Job #BR-' + (batchId ? batchId.replace(/-/g, '').slice(0, 8).toUpperCase() : jobId)}
+            {isDryRun && <Badge variant="info" pill>DRY-RUN</Badge>}
+            {isNewOrg && <Badge variant="primary" pill>New org onboarding</Badge>}
           </div>
         </div>
       )}
 
-      <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, background: WHITE }}>
-        {/* Card header */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid ' + BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>{'Job #BR-' + jobId}</span>
-            <span style={{ fontSize: 12, color: G500 }}>{courseItems.length + ' runs - ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : '')}</span>
-            {isRealMode && batchQuery.isFetching && (
-              <Spinner animation="border" size="sm" style={{ width: 12, height: 12, borderWidth: '0.15em', marginLeft: 4, color: BRAND }} />
+      <div className="jp-card">
+        <div className="jp-card-header">
+          <div className="jp-card-header-left">
+            <span className="jp-card-title">{'Job #BR-' + (batchId ? batchId.replace(/-/g, '').slice(0, 8).toUpperCase() : jobId)}</span>
+            <span className="jp-card-meta">{courseItems.length + ' runs - ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : '')}</span>
+            {isPending && (
+              <span style={{ marginLeft: 6, fontSize: 11, color: '#6c757d', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Spinner animation="border" size="sm" style={{ width: 10, height: 10, borderWidth: '0.15em' }} />
+                Submitting...
+              </span>
+            )}
+            {!isPending && isRealMode && batchQuery.isFetching && (
+              <Spinner animation="border" size="sm" style={{ width: 12, height: 12, borderWidth: '0.15em', marginLeft: 4, color: '#006daa' }} />
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="jp-card-header-right">
             {allComplete && (
               <Button variant="success" size="sm" onClick={handleExport}>
                 {copied ? 'Copied!' : 'Export summary'}
@@ -526,39 +558,39 @@ export default function JobProgress({
           </div>
         </div>
 
-        <div style={{ padding: '16px 20px' }}>
+        <div className="jp-card-body">
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(' + statCards.length + ',1fr)', gap: 10, marginBottom: 16 }}>
+          <div className="jp-stat-grid" style={{ gridTemplateColumns: 'repeat(' + statCards.length + ',1fr)' }}>
             {statCards.map(s => (
-              <div key={s.l} style={{ background: G50, border: '1px solid ' + BORDER, borderRadius: 4, padding: '10px 14px' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: s.c, marginBottom: 2 }}>{s.v}</div>
-                <div style={{ fontSize: 12, color: G500 }}>{s.l}</div>
+              <div key={s.l} className="jp-stat-card">
+                <div className="jp-stat-val" style={{ color: s.c }}>{s.v}</div>
+                <div className="jp-stat-label">{s.l}</div>
               </div>
             ))}
           </div>
 
           {/* Phase 0 — Org registration (new org mode only) */}
           {isNewOrg && (
-            <div style={{ marginBottom: 16 }}>
-              <PhaseHeader num={0} label="Phase 0 - Organization registration" sub={rDone + ' of ' + regItems.length + ' registered'} done={rDone === regItems.length} active={phase === 0} accentColor={PURPLE} />
+            <div className="jp-phase">
+              <PhaseHeader num={0} label="Phase 0 - Organization registration" sub={rDone + ' of ' + regItems.length + ' registered'} done={rDone === regItems.length} active={phase === 0} accentColor="#6f42c1" />
               <ProgressBar now={regItems.length > 0 ? Math.round(rDone / regItems.length * 100) : 0} variant="info" />
-              <div style={{ marginTop: 8 }}>
+              <div className="jp-phase-items">
                 <PhaseItemRows items={regItems} />
               </div>
             </div>
           )}
 
           {/* Phase 1 — Course creation, grouped by org */}
-          <div style={{ marginBottom: 16, opacity: phase >= 1 ? 1 : 0.45, transition: 'opacity .3s' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div className={`jp-phase${phase >= 1 ? '' : ' jp-phase--faded'}`}>
+            <div className="jp-phase-header-row">
               <PhaseHeader num={1} label="Phase 1 - Course creation" sub={cDone + ' of ' + courseItems.length + ' complete - ' + cRun + ' running'} done={cDone === courseItems.length} active={phase === 1} />
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div className="jp-phase-btns">
                 <Button variant="tertiary" size="sm" onClick={() => setOpenCOrg(Object.fromEntries(orgs.map(o => [o, true])))}>Expand all</Button>
                 <Button variant="tertiary" size="sm" onClick={() => setOpenCOrg(Object.fromEntries(orgs.map(o => [o, false])))}>Collapse all</Button>
               </div>
             </div>
             <ProgressBar now={cPct} variant={cDone === courseItems.length ? 'success' : 'primary'} />
-            <div style={{ marginTop: 8 }}>
+            <div className="jp-phase-items">
               {orgs.map(orgCode => {
                 const orgCourseItems = courseItems
                   .filter(it => it.r?.org === orgCode)
@@ -568,29 +600,31 @@ export default function JobProgress({
                 const orgRunning = orgCourseItems.filter(it => it.status === 'running').length;
                 const isOrgOpen  = openCOrg[orgCode] !== false;
                 const allDone    = orgDone === orgCourseItems.length;
-                const accent     = allDone ? SUCCESS : orgRunning > 0 ? BRAND : G300;
+                const stateMod   = allDone ? '--done' : orgRunning > 0 ? '--running' : '';
+                const orgName    = orgCourseItems[0]?.r?.orgName || orgCode;
                 return (
-                  <div key={orgCode} style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 8, overflow: 'hidden' }}>
+                  <div key={orgCode} className="jp-org-item">
+                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
                     <div
                       onClick={() => setOpenCOrg(p => ({ ...p, [orgCode]: !isOrgOpen }))}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: G50, borderLeft: '4px solid ' + accent }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#e9ecef'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = G50; }}
+                      className={`jp-org-header${stateMod ? ' jp-org-header' + stateMod : ''}`}
                     >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                        {allDone ? 'v' : orgRunning > 0
+                      <div className={`jp-org-dot${stateMod ? ' jp-org-dot' + stateMod : ''}`}>
+                        {allDone ? '✓' : orgRunning > 0
                           ? <Spinner animation="border" size="sm" style={{ width: 10, height: 10, borderWidth: '0.15em', color: '#fff' }} />
                           : 'o'}
                       </div>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: accent }}>{orgCode}</span>
-                      <span style={{ fontSize: 12, color: G500 }}>
+                      <span className={`jp-org-name${stateMod ? ' jp-org-name' + stateMod : ''}`}>
+                        {orgName !== orgCode ? `${orgName} (${orgCode})` : orgCode}
+                      </span>
+                      <span className="jp-org-meta">
                         {orgDone + '/' + orgCourseItems.length + ' complete' + (orgRunning > 0 ? ' - ' + orgRunning + ' running' : '')}
                       </span>
-                      <div style={{ flex: 1 }} />
-                      <span style={{ fontSize: 11, color: G500 }}>{isOrgOpen ? '▲' : '▼'}</span>
+                      <div className="jp-org-spacer" />
+                      <span className="jp-org-toggle">{isOrgOpen ? '▲' : '▼'}</span>
                     </div>
                     {isOrgOpen && (
-                      <div style={{ padding: '4px 0' }}>
+                      <div className="jp-org-rows">
                         <PhaseItemRows items={orgCourseItems} />
                       </div>
                     )}
@@ -601,7 +635,7 @@ export default function JobProgress({
           </div>
 
           {/* Phase 2 — Discovery sync */}
-          <div style={{ marginBottom: 16, opacity: courseDiscoveryEnabled ? (phase >= 2 ? 1 : 0.45) : 0.35, transition: 'opacity .3s' }}>
+          <div className={`jp-phase${!courseDiscoveryEnabled ? ' jp-phase--skipped' : phase >= 2 ? '' : ' jp-phase--faded'}`}>
             <PhaseHeader
               num={2}
               label="Phase 2 - Discovery sync"
@@ -614,7 +648,7 @@ export default function JobProgress({
           </div>
 
           {/* Phase 3 — Program linking */}
-          <div style={{ opacity: courseDiscoveryEnabled ? (phase >= 3 ? 1 : 0.45) : 0.35, transition: 'opacity .3s' }}>
+          <div className={`jp-phase${!courseDiscoveryEnabled ? ' jp-phase--skipped' : phase >= 3 ? '' : ' jp-phase--faded'}`}>
             <PhaseHeader
               num={3}
               label={isNewOrg ? 'Phase 3 - Program creation & linking' : 'Phase 3 - Program linking'}
@@ -628,9 +662,8 @@ export default function JobProgress({
         </div>
       </div>
 
-      {/* Action bar — hidden when viewing history */}
       {!historyEntry && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+        <div className="jp-action-bar">
           {isDryRun && allComplete && (
             <Button variant={isNewOrg ? 'brand' : 'primary'} onClick={onExecute}>
               {isNewOrg ? 'Onboard organizations' : 'Execute reruns'}

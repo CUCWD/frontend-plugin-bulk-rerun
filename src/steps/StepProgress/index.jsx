@@ -6,20 +6,7 @@ import { Button, Badge, Form } from '@openedx/paragon';
 
 import { useBulkRerunState } from '../../state';
 import JobProgress from '../../tracking/JobProgress';
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const BRAND    = '#006daa';
-const SUCCESS  = '#178253';
-const DANGER   = '#c32d3a';
-const WARNING  = '#856404';
-const WARNING_BG = '#fff8e6';
-const G50      = '#f8f9fa';
-const G500     = '#6c757d';
-const G700     = '#454545';
-const G900     = '#1f2937';
-const BORDER   = '#dee2e6';
-const WHITE    = '#fff';
-const MONO     = '"SFMono-Regular","Courier New",monospace';
+import './index.scss';
 
 const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_e) { return iso || ''; } };
 
@@ -44,15 +31,13 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
 
   if (activeJobs.length === 0) {
     return (
-      <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, background: WHITE }}>
-        <div style={{ padding: '3rem', textAlign: 'center', color: G500 }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-          <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4, color: G700 }}>No active runs</div>
-          <div style={{ fontSize: 13, marginBottom: 20 }}>
-            Start a bulk run from the wizard. Progress will appear here in real time.
-          </div>
-          <Button variant="primary" onClick={onGoWizard}>Go to Bulk Run Wizard</Button>
+      <div className="sp-empty">
+        <div className="sp-empty-icon">📊</div>
+        <div className="sp-empty-title">No active runs</div>
+        <div className="sp-empty-sub">
+          Start a bulk run from the wizard. Progress will appear here in real time.
         </div>
+        <Button variant="primary" onClick={onGoWizard}>Go to Bulk Run Wizard</Button>
       </div>
     );
   }
@@ -60,18 +45,18 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
   return (
     <div>
       {/* Filter bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: G700, fontWeight: 500 }}>
+      <div className="sp-filter-bar">
+        <span className="sp-filter-count">
           {activeJobs.length + ' active run' + (activeJobs.length !== 1 ? 's' : '')}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <span style={{ fontSize: 12, color: G500 }}>Filter by user:</span>
+        <div className="sp-filter-right">
+          <span className="sp-filter-label">Filter by user:</span>
           <Form.Control
             as="select"
             size="sm"
             value={jobUserFilter}
             onChange={e => setJobUserFilter(e.target.value)}
-            style={{ minWidth: 180 }}
+            className="sp-filter-select"
           >
             <option value="">{'All users (' + activeJobs.length + ')'}</option>
             {uniqueUsers.map(u => (
@@ -87,43 +72,34 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
       </div>
 
       {jobUserFilter && visibleJobs.length === 0 && (
-        <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, background: WHITE }}>
-          <div style={{ padding: '2rem', textAlign: 'center', color: G500, fontSize: 13 }}>
-            {'No active runs for '}
-            <strong>{jobUserFilter}</strong>
-            {'.'}
-            <Button variant="tertiary" size="sm" onClick={() => setJobUserFilter('')} style={{ marginLeft: 8 }}>Show all</Button>
-          </div>
+        <div className="sp-no-match">
+          {'No active runs for '}
+          <strong>{jobUserFilter}</strong>
+          {'.'}
+          <Button variant="tertiary" size="sm" onClick={() => setJobUserFilter('')} style={{ marginLeft: 8 }}>Show all</Button>
         </div>
       )}
 
       {activeJobs.map(job => {
         if (jobUserFilter && job.createdBy !== jobUserFilter) return null;
         const isExpanded = jobsExpanded[String(job.id)] !== false;
-        const borderRadius = isExpanded ? '4px 4px 0 0' : '4px';
 
         return (
-          <div key={job.id} style={{ marginBottom: 16 }}>
+          <div key={job.id} className="sp-job-card">
             {/* Collapsible job header */}
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 16px', background: G50,
-                border: '1px solid ' + BORDER, borderRadius,
-                cursor: 'pointer',
-              }}
+              className={`sp-job-header sp-job-header--${isExpanded ? 'expanded' : 'collapsed'}`}
               onClick={() => toggleJobExpanded(job.id)}
             >
-              <span style={{ fontWeight: 600, fontSize: 13, fontFamily: MONO, color: G900 }}>
-                {'BR-' + job.id}
+              <span className="sp-job-id">{'BR-' + (job.batchId ? job.batchId.replace(/-/g, '').slice(0, 8).toUpperCase() : job.id)}</span>
+              {job.isDry && <Badge variant="warning" pill>DRY RUN</Badge>}
+              <span className="sp-job-meta">
+                <span className="sp-job-meta-date">{fmtDate(job.createdAt)}</span>
+                <span className="sp-job-meta-sep">·</span>
+                <span className="sp-job-meta-user">{job.createdBy}</span>
               </span>
-              {job.isDry && (
-                <Badge variant="warning" pill style={{ fontSize: 10, lineHeight: 1.5 }}>DRY RUN</Badge>
-              )}
-              <span style={{ fontSize: 12, color: G500 }}>
-                {fmtDate(job.createdAt) + ' - ' + job.createdBy}
-              </span>
-              <div style={{ flex: 1 }} />
+              <div className="sp-job-spacer" />
               <Button
                 variant="tertiary"
                 size="sm"
@@ -134,7 +110,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
               <Button
                 variant="tertiary"
                 size="sm"
-                style={{ color: DANGER }}
+                className="sp-dismiss-btn"
                 onClick={e => { e.stopPropagation(); removeActiveJob(job.id); }}
               >
                 Dismiss
@@ -142,27 +118,22 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
             </div>
 
             {/*
-              Step4 is ALWAYS mounted here so the simulation keeps running
-              when the job header is collapsed. Use display:none, NOT conditional render.
+              JobProgress is ALWAYS mounted so the simulation keeps running
+              when the header is collapsed. Use display:none, NOT conditional render.
               key={job.id + "-" + job.isDry} triggers remount when dry->real.
             */}
-            <div
-              style={{
-                display: isExpanded ? 'block' : 'none',
-                border: '1px solid ' + BORDER, borderTop: 'none',
-                borderRadius: '0 0 4px 4px', padding: 20, background: WHITE,
-              }}
-            >
+            <div className="sp-job-body" style={{ display: isExpanded ? 'block' : 'none' }}>
               <JobProgress
                 key={job.id + '-' + job.isDry}
                 cfg={job.cfg}
                 jobId={job.id}
                 batchId={job.batchId ?? null}
+                isPending={job.isPending ?? false}
                 isDryRun={job.isDry}
                 createdBy={job.createdBy}
                 createdAt={job.createdAt}
                 onSaveHistory={onSaveHistory}
-                onComplete={() => { if (!job.isDry) removeActiveJob(job.id); }}
+                onComplete={() => {}}
                 onNew={() => { softReset(); setBulkView('wizard'); }}
                 onExecute={() => flipActiveJobDry(job.id)}
               />

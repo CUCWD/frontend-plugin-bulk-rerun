@@ -2,37 +2,15 @@
 // per-org accordion where each org has Courses and Team & Access sub-tabs.
 // savedCfg re-hydrates all local state when the user navigates Back from StepReview.
 // existsSet is serialised as an array in onNext(cfg) because Set is not hookstate-safe.
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Alert, Spinner, Form, Badge } from '@openedx/paragon';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Button, Alert, Spinner, Form, Badge, DataTable } from '@openedx/paragon';
 
 import { useValidateCourseKeys, useSearchEmails } from '../../hooks';
-import { makeKey, validateRunId, detectConflict } from '../../utils/courseKeys';
+import { makeKey, validateRunId, detectConflict, COURSE_ID_MAX_COMBINED, RUN_ID_RE } from '../../utils/courseKeys';
 import EditableRunCell from './EditableRunCell';
+import './index.scss';
 
-// ── Design tokens ────────────────────────────────────────────────────────────
-const BRAND     = '#006daa';
-const BRAND_LT  = '#deeef8';
-const BRAND_XLT = '#eef6fb';
-const SUCCESS   = '#178253';
-const SUCCESS_BG = '#d4edda';
-const DANGER    = '#c32d3a';
-const DANGER_BG = '#fdf0f1';
-const DANGER_BDR = '#f1aeb5';
-const WARNING   = '#856404';
-const WARNING_BG = '#fff8e6';
-const WARNING_BDR = '#ffc107';
-const G50       = '#f8f9fa';
-const G100      = '#f0f0f0';
-const G200      = '#e0e0e0';
-const G300      = '#c8c8c8';
-const G500      = '#6c757d';
-const G700      = '#454545';
-const G900      = '#1f2937';
-const BORDER    = '#dee2e6';
-const WHITE     = '#fff';
-const MONO      = '"SFMono-Regular","Courier New",monospace';
-
-// Hoisted lookup maps — avoids object-literal subscript inside JSX
+// ── Hoisted lookup maps ───────────────────────────────────────────────────────
 const CONFLICT_LABEL = {
   exists: 'Already exists',
   dup:    'Duplicate',
@@ -52,12 +30,69 @@ const GATING_MODES = [
   { v: 'custom',   title: 'Custom map',      desc: 'Define prerequisite blocks with min score/completion' },
 ];
 
+// Pure helper — returns display info for a team member's account status
+function emailStatusInfo(trimmed, apiStatus) {
+  if (!trimmed)                  return { label: '—',                cls: 'sc-email-status--muted', icon: null };
+  if (!trimmed.includes('@'))    return { label: 'Invalid email',    cls: 'sc-email-status--err',   icon: '✗' };
+  if (apiStatus === 'found')     return { label: 'Account found',    cls: 'sc-email-status--ok',    icon: '✓' };
+  if (apiStatus === 'not_found') return { label: 'No account found', cls: 'sc-email-status--err',   icon: '✗' };
+  if (apiStatus === 'unknown')   return { label: 'Lookup failed',    cls: 'sc-email-status--warn',  icon: '⚠' };
+  if (apiStatus === 'checking')  return { label: null,               cls: 'sc-email-status--muted', icon: null };
+  return { label: 'Pending…', cls: 'sc-email-status--muted', icon: null };
+}
+
+// Conflict class helper for course-run DataTable cells
+const conflictCls = conflict => (conflict === 'exists' ? ' sc-cell--exists' : conflict ? ' sc-cell--conflict' : '');
+
+// Isolated email input — manages local state so typing never triggers a parent
+// re-render. Commits to orgRosters (and starts verification) 2 s after the user
+// stops typing, or immediately on blur so tabbing away also works.
+function TeamEmailCell({
+  value: externalValue, orgCode, rowIndex, apiStatus, onUpdate,
+}) {
+  const [localValue, setLocalValue] = useState(externalValue);
+  const timerRef = useRef(null);
+
+  // Sync if external value changes (e.g. savedCfg re-hydration or row reset)
+  useEffect(() => { setLocalValue(externalValue); }, [externalValue]);
+
+  // Cancel pending timer on unmount
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const handleChange = e => {
+    const v = e.target.value;
+    setLocalValue(v);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => onUpdate(orgCode, rowIndex, 'email', v), 1000);
+  };
+
+  const handleBlur = () => {
+    clearTimeout(timerRef.current);
+    onUpdate(orgCode, rowIndex, 'email', localValue);
+  };
+
+  const trimmed = localValue.trim();
+  const isInvalid = apiStatus === 'not_found' || (!trimmed.includes('@') && trimmed.length > 0);
+
+  return (
+    <Form.Control
+      size="sm"
+      value={localValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      placeholder="instructor@example.org"
+      className="sc-email-input"
+      isInvalid={isInvalid}
+    />
+  );
+}
+
 // Inline label helper — Form.Label with optional hint text
 function Lbl({ children, hint }) {
   return (
-    <Form.Label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: G700, marginBottom: 4 }}>
+    <Form.Label className="sc-lbl">
       {children}
-      {hint && <span style={{ fontWeight: 400, color: G500, marginLeft: 5, fontSize: 12 }}>{hint}</span>}
+      {hint && <span className="sc-lbl-hint">{hint}</span>}
     </Form.Label>
   );
 }
@@ -65,10 +100,10 @@ function Lbl({ children, hint }) {
 // Toggle row — native checkbox role="switch" to avoid Paragon FormSwitch prop-type warnings
 function Toggle({ id, checked, onChange, label, hint }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid ' + G200 }}>
-      <div style={{ paddingRight: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: G900 }}>{label}</div>
-        {hint && <span style={{ display: 'block', fontSize: 12, color: G500, marginTop: 2 }}>{hint}</span>}
+    <div className="sc-toggle">
+      <div className="sc-toggle__text">
+        <div className="sc-toggle__label">{label}</div>
+        {hint && <span className="sc-toggle__hint">{hint}</span>}
       </div>
       <input
         id={id}
@@ -77,7 +112,7 @@ function Toggle({ id, checked, onChange, label, hint }) {
         checked={checked}
         onChange={onChange}
         aria-label={label}
-        style={{ width: 36, height: 20, accentColor: BRAND, cursor: 'pointer', flexShrink: 0, marginTop: 2 }}
+        className="sc-toggle__switch"
       />
     </div>
   );
@@ -122,9 +157,15 @@ export default function StepConfigure({
   const [validated,       setValidated]       = useState(false);
   const [existsSet,       setExistsSet]       = useState(new Set());
 
-  const timerRef   = useRef(null);
-  const cancelRef  = useRef(false);
-  const rowsRef    = useRef([]);
+  const timerRef      = useRef(null);
+  const cancelRef     = useRef(false);
+  const rowsRef       = useRef([]);
+  // Refs that mirror checking/validated so the column Cell renderers can read
+  // the current value without closing over stale state. This lets courseRunColumns
+  // stay stable (no checking/validated in deps) so EditableRunCell is never remounted
+  // mid-keystroke and focus is preserved.
+  const checkingRef   = useRef(false);
+  const validatedRef  = useRef(false);
 
   const validateMutation  = useValidateCourseKeys();
   const searchEmails      = useSearchEmails();
@@ -132,7 +173,9 @@ export default function StepConfigure({
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const effectiveRows = rows.map(r => ({ ...r, run: rowRunOverrides[r.id] ?? runId }));
-  rowsRef.current = effectiveRows;
+  rowsRef.current     = effectiveRows;
+  checkingRef.current = checking;
+  validatedRef.current = validated;
 
   const runMaxLen = rows.length > 0
     ? Math.min(...rows.map(r => 255 - 12 - r.org.length - r.srcNum.length))
@@ -142,8 +185,14 @@ export default function StepConfigure({
   const conflicts = effectiveRows.map((r, i) => detectConflict(r, effectiveRows, i, existsSet));
   const nConf = conflicts.filter(Boolean).length;
 
+  const courseIdTooLong = effectiveRows.map(
+    r => r.org.length + r.num.length + r.run.length > COURSE_ID_MAX_COMBINED,
+  );
+  const nLenErr = courseIdTooLong.filter(Boolean).length;
+  const hasAnyInvalidRunChars = effectiveRows.some(r => r.run.length > 0 && !RUN_ID_RE.test(r.run));
+
   const teamInvalid = Object.values(orgRosters).flat().filter(m => {
-    if (!m.email) return false;
+    if (!m.email) return true;
     if (!m.email.includes('@')) return true;
     const s = emailStatus[m.email.trim()];
     return s === 'not_found';
@@ -192,6 +241,10 @@ export default function StepConfigure({
     cancelRef.current = false;
 
     timerRef.current = setTimeout(async () => {
+      // Wait until every effective run ID (global default + per-row overrides)
+      // passes format validation before hitting the API — same logic as the
+      // "Target run identifier" field guard added above.
+      if (rowsRef.current.some(r => !validateRunId(r.run, runMaxLen).ok)) return;
       setChecking(true);
       try {
         const targetKeys = rowsRef.current.map(r => makeKey(r.org, r.num, r.run));
@@ -207,7 +260,7 @@ export default function StepConfigure({
           setValidated(true);
         }
       }
-    }, 600);
+    }, 1200);
 
     return () => {
       cancelRef.current = true;
@@ -264,26 +317,264 @@ export default function StepConfigure({
     ...p, [org]: [...(p[org] || [newMember()]), newMember()],
   }));
 
-  const updateOrgRoster = (org, i, k, v) => setOrgRosters(p => {
+  const updateOrgRoster = useCallback((org, i, k, v) => setOrgRosters(p => {
     const r = [...(p[org] || [newMember()])];
     r[i] = { ...r[i], [k]: v };
     return { ...p, [org]: r };
-  });
+  }), [newMember]);
 
-  const removeOrgMember = (org, i) => setOrgRosters(p => ({
+  const removeOrgMember = useCallback((org, i) => setOrgRosters(p => ({
     ...p, [org]: (p[org] || []).filter((_, j) => j !== i),
-  }));
+  })), []);
 
-  const updateRunOverride = (rowId, val) => setRowRunOverrides(p => {
+  const updateRunOverride = useCallback((rowId, val) => setRowRunOverrides(p => {
     if (!val) {
       const n = { ...p };
       delete n[rowId];
       return n;
     }
     return { ...p, [rowId]: val };
-  });
+  }), []);
 
   const removeRow = i => setRows(p => p.filter((_, j) => j !== i));
+
+  // ── Course-run DataTable columns ───────────────────────────────────────────
+  const courseRunColumns = useMemo(() => [
+    {
+      id: 'indicator',
+      Header: '',
+      accessor: 'conflict',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { conflict, lenErr } = row.original;
+        const indCls = lenErr && !conflict ? ' sc-cell--exists' : conflictCls(conflict);
+        return (
+          <div className={`sc-cell sc-cell--indicator${indCls}`}>
+            {checkingRef.current
+              ? <Spinner animation="border" size="sm" className="sc-spinner-sm" />
+              : (conflict || lenErr)
+                ? <span className="sc-conflict-icon">{conflict === 'exists' ? '🚫' : lenErr ? '✗' : '⚠️'}</span>
+                : validatedRef.current
+                  ? <span className="sc-ok-check">✓</span>
+                  : null}
+          </div>
+        );
+      },
+    },
+    {
+      Header: 'Course name',
+      accessor: 'name',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--src${conflictCls(row.original.conflict)}`}>
+          {row.original.name}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src org',
+      accessor: 'srcOrg',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
+          {row.original.srcOrg}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src course #',
+      accessor: 'srcNum',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
+          {row.original.srcNum}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src run',
+      accessor: 'srcRun',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
+          {row.original.srcRun}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target org',
+      accessor: 'org',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--tgt${conflictCls(row.original.conflict)}`}>
+          {row.original.org}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target course #',
+      accessor: 'num',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--tgt${conflictCls(row.original.conflict)}`}>
+          {row.original.num}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target run',
+      accessor: 'run',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sc-cell sc-cell--tgt-run${conflictCls(row.original.conflict)}`}>
+          <EditableRunCell
+            value={row.original.run}
+            onChange={v => updateRunOverride(row.original.id, v)}
+            hasError={!!row.original.conflict || !!row.original.lenErr}
+          />
+        </div>
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [updateRunOverride]);
+
+  // Renders the full-width conflict detail that appears beneath each conflicted row.
+  const renderCourseRunSubRow = useCallback(({ row }) => {
+    const { conflict, lenErr, idx } = row.original;
+    if (!conflict && !lenErr) return null;
+    const subRowCls = (conflict === 'exists' || lenErr) ? 'sc-sub-row--exists' : 'sc-sub-row--conflict';
+    const combined = row.original.org.length + row.original.num.length + row.original.run.length;
+    return (
+      <div className={`sc-sub-row ${subRowCls}`}>
+        {lenErr && (
+          <Badge variant="danger" className="sc-badge-sm">
+            {`ID too long: ${combined}/${COURSE_ID_MAX_COMBINED} chars (org+num+run)`}
+          </Badge>
+        )}
+        {conflict && (
+          <Badge variant={conflict === 'exists' ? 'danger' : 'warning'} className="sc-badge-sm">
+            {CONFLICT_LABEL[conflict]}
+          </Badge>
+        )}
+        {conflict === 'exists' && (
+          <button onClick={() => removeRow(idx)} className="sc-remove-btn">
+            × Remove
+          </button>
+        )}
+      </div>
+    );
+  }, [removeRow]);
+
+  // ── Team-member DataTable columns ─────────────────────────────────────────
+  // apiStatus is read from row.original (embedded in data), NOT from the emailStatus
+  // closure — this keeps teamColumns stable so DataTable never remounts cells.
+  const teamColumns = useMemo(() => [
+    {
+      Header: 'Email address',
+      accessor: 'email',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { email, orgCode: oc, apiStatus } = row.original;
+        return (
+          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
+            <TeamEmailCell
+              value={email}
+              orgCode={oc}
+              rowIndex={row.index}
+              apiStatus={apiStatus}
+              onUpdate={updateOrgRoster}
+            />
+          </div>
+        );
+      },
+    },
+    {
+      Header: 'Studio role',
+      accessor: 'studio',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { apiStatus } = row.original;
+        return (
+          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
+            <Form.Control
+              as="select"
+              size="sm"
+              value={row.original.studio}
+              onChange={e => updateOrgRoster(row.original.orgCode, row.index, 'studio', e.target.value)}
+              className="sc-select-auto"
+            >
+              <option value="admin">Admin</option>
+              <option value="staff">Staff</option>
+              <option value="data_researcher">Data researcher</option>
+            </Form.Control>
+          </div>
+        );
+      },
+    },
+    {
+      Header: 'Discussion role',
+      accessor: 'discussion',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { apiStatus } = row.original;
+        return (
+          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
+            <Form.Control
+              as="select"
+              size="sm"
+              value={row.original.discussion}
+              onChange={e => updateOrgRoster(row.original.orgCode, row.index, 'discussion', e.target.value)}
+              className="sc-select-auto"
+            >
+              <option value="discussion_admin">Discussion admin</option>
+              <option value="moderator">Moderator</option>
+              <option value="none">None</option>
+            </Form.Control>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'accountStatus',
+      Header: 'Account status',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { email, apiStatus } = row.original;
+        const trimmed = email.trim();
+        const { label, cls, icon } = emailStatusInfo(trimmed, apiStatus);
+        return (
+          <div className={`sc-team-cell sc-team-cell--nowrap${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
+            {apiStatus === 'checking'
+              ? <Spinner animation="border" size="sm" className="sc-spinner-sm" />
+              : (
+                <span className={`sc-email-status ${cls}`}>
+                  {icon && <span className="sc-email-status__icon">{icon}</span>}
+                  {label}
+                </span>
+              )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      Header: '',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const { apiStatus } = row.original;
+        return (
+          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
+            <button
+              onClick={() => removeOrgMember(row.original.orgCode, row.index)}
+              className="sc-team-remove"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      },
+    },
+  ], [updateOrgRoster, removeOrgMember]);
 
   const handleNext = () => {
     onNext({
@@ -298,7 +589,7 @@ export default function StepConfigure({
   };
 
   // ── canReview ──────────────────────────────────────────────────────────────
-  const canReview = nConf === 0 && !checking && validated && runIdV.ok && schedOkUI && teamInvalid === 0 && teamChecking === 0;
+  const canReview = nConf === 0 && nLenErr === 0 && !checking && validated && runIdV.ok && schedOkUI && teamInvalid === 0 && teamChecking === 0;
 
   // ── Tab definitions ────────────────────────────────────────────────────────
   const TABS = [
@@ -312,41 +603,34 @@ export default function StepConfigure({
     <div>
 
       {/* ── Shared settings card ── */}
-      <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 14, background: WHITE }}>
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid ' + BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>Shared settings</span>
-          <span style={{ fontSize: 12, color: G500 }}>Applied to all {rows.length} course runs</span>
+      <div className="sc-card">
+        <div className="sc-card-header">
+          <span className="sc-card-title">Shared settings</span>
+          <span className="sc-card-subtitle">Applied to all {rows.length} course runs</span>
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid ' + BORDER, background: G50, padding: '0 20px' }}>
+        <div className="sc-tabs">
           {TABS.map(t => (
             <div
               key={t.id}
               onClick={() => setTab(t.id)}
-              style={{
-                padding: '10px 16px', fontSize: 13, fontWeight: 500,
-                cursor: 'pointer', userSelect: 'none',
-                borderBottom: '2px solid ' + (tab === t.id ? BRAND : 'transparent'),
-                color: tab === t.id ? BRAND : G500,
-                display: 'flex', alignItems: 'center', gap: 6,
-                transition: 'color .12s', whiteSpace: 'nowrap',
-              }}
+              className={`sc-tab${tab === t.id ? ' sc-tab--active' : ''}`}
             >
               {t.label}
               {t.badge && (
-                <Badge variant="warning" pill style={{ fontSize: 10, lineHeight: 1.5 }}>{t.badge}</Badge>
+                <Badge variant="warning" pill className="sc-badge-xs">{t.badge}</Badge>
               )}
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '16px 20px' }}>
+        <div className="sc-card-body">
 
           {/* ── Scheduling tab ── */}
           {tab === 'scheduling' && (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px', marginBottom: 14 }}>
+              <div className="sc-grid-2">
                 {[['Course start date','start'],['Course end date','end'],['Enrollment start','enrollStart'],['Enrollment end','enrollEnd']].map(([lbl, k]) => (
                   <div key={k}>
                     <Lbl>{lbl}</Lbl>
@@ -356,7 +640,7 @@ export default function StepConfigure({
                       isInvalid={!!schedErrs[k]}
                       onChange={e => setSched(p => ({ ...p, [k]: e.target.value }))}
                     />
-                    {schedErrs[k] && <div style={{ fontSize: 11, color: DANGER, marginTop: 3, fontWeight: 500 }}>{schedErrs[k]}</div>}
+                    {schedErrs[k] && <div className="sc-field-err">{schedErrs[k]}</div>}
                   </div>
                 ))}
                 <div>
@@ -368,22 +652,23 @@ export default function StepConfigure({
                 </div>
                 <div>
                   <Lbl>Target run identifier</Lbl>
-                  <div style={{ position: 'relative' }}>
+                  <div className="sc-run-field">
                     <Form.Control
                       value={runId}
-                      style={{ fontFamily: MONO }}
+                      className="font-monospace"
                       isInvalid={!runIdV.ok && runId.length > 0}
                       onChange={e => setRunId(e.target.value)}
                       placeholder="e.g. 2026_2027"
+                      style={runId.length > 0 ? { paddingRight: 30 } : undefined}
                     />
                     {runId.length > 0 && (
-                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: runIdV.ok ? SUCCESS : DANGER, pointerEvents: 'none' }}>
+                      <span className={`sc-run-indicator sc-run-indicator--${runIdV.ok ? 'ok' : 'err'}`}>
                         {runIdV.ok ? '✓' : '✗'}
                       </span>
                     )}
                   </div>
                   {runId.length > 0 && (
-                    <div style={{ fontSize: 11, marginTop: 3, fontWeight: 500, color: runIdV.ok ? SUCCESS : DANGER }}>
+                    <div className={`sc-run-msg sc-run-msg--${runIdV.ok ? 'ok' : 'err'}`}>
                       {runIdV.msg}
                     </div>
                   )}
@@ -391,13 +676,13 @@ export default function StepConfigure({
               </div>
               {!schedOkUI && (
                 <Alert variant="warning" className="mb-0 mt-2 py-2">
-                  <strong style={{ display: 'block', marginBottom: 2 }}>Fix scheduling dates before continuing</strong>
+                  <strong className="sc-alert-title">Fix scheduling dates before continuing</strong>
                   The date configuration has issues that must be resolved.
                 </Alert>
               )}
               {schedOkUI && runIdV.ok && (
                 <Alert variant="info" className="mb-0 mt-2 py-2">
-                  <strong style={{ display: 'block', marginBottom: 2 }}>Run identifier applied to all course runs</strong>
+                  <strong className="sc-alert-title">Run identifier applied to all course runs</strong>
                   Changing this updates every row. Individual overrides available in the table below.
                 </Alert>
               )}
@@ -408,10 +693,10 @@ export default function StepConfigure({
           {tab === 'certs' && (
             <div>
               <Alert variant="info" className="mb-3 py-2">
-                <strong style={{ display: 'block', marginBottom: 2 }}>Global certificate template</strong>
+                <strong className="sc-alert-title">Global certificate template</strong>
                 A single branded certificate template is applied across all organizations.
               </Alert>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px', marginBottom: 14 }}>
+              <div className="sc-grid-2">
                 <div>
                   <Lbl hint="Audit to Honor per workflow">Course mode</Lbl>
                   <Form.Control as="select" value={certs.mode} onChange={e => setCerts(p => ({ ...p, mode: e.target.value }))}>
@@ -437,57 +722,49 @@ export default function StepConfigure({
           {tab === 'gating' && (
             <div>
               <Alert variant="info" className="mb-3 py-2">
-                <strong style={{ display: 'block', marginBottom: 2 }}>Lesson gating - subsection prerequisites</strong>
+                <strong className="sc-alert-title">Lesson gating - subsection prerequisites</strong>
                 Uses openedx.core.lib.gating API. Safe default is Disabled.
               </Alert>
-              <div style={{ marginBottom: 16 }}>
+              <div className="sc-gating-mode-wrap">
                 <Lbl>Gating mode</Lbl>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div className="sc-gating-grid">
                   {GATING_MODES.map(m => (
-                    <label key={m.v} style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 10,
-                      padding: '11px 13px',
-                      border: '2px solid ' + (gating.mode === m.v ? BRAND : BORDER),
-                      borderRadius: 4, cursor: 'pointer',
-                      background: gating.mode === m.v ? BRAND_XLT : WHITE,
-                      transition: 'border .12s',
-                    }}>
+                    <label key={m.v} className={`sc-gating-option${gating.mode === m.v ? ' sc-gating-option--active' : ''}`}>
                       <input
                         type="radio"
                         name="gmode"
                         value={m.v}
                         checked={gating.mode === m.v}
                         onChange={() => setGating(p => ({ ...p, mode: m.v }))}
-                        style={{ marginTop: 2, accentColor: BRAND, flexShrink: 0 }}
                       />
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: G900 }}>{m.title}</div>
-                        <div style={{ fontSize: 12, color: G500, marginTop: 2 }}>{m.desc}</div>
+                        <div className="sc-gating-option__title">{m.title}</div>
+                        <div className="sc-gating-option__desc">{m.desc}</div>
                       </div>
                     </label>
                   ))}
                 </div>
               </div>
               {gating.mode === 'template' && (
-                <div style={{ marginBottom: 12 }}>
+                <div className="sc-gating-field">
                   <Lbl>Gating template ID</Lbl>
-                  <Form.Control value={gating.templateId} style={{ fontFamily: MONO }} onChange={e => setGating(p => ({ ...p, templateId: e.target.value }))} placeholder="template-uuid" />
+                  <Form.Control value={gating.templateId} className="font-monospace" onChange={e => setGating(p => ({ ...p, templateId: e.target.value }))} placeholder="template-uuid" />
                 </div>
               )}
               {(gating.mode === 'template' || gating.mode === 'custom') && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 20px' }}>
+                <div className="sc-grid-2">
                   <div>
                     <Lbl hint="0-100">Min score %</Lbl>
-                    <Form.Control value={gating.minScore} style={{ fontFamily: MONO }} onChange={e => setGating(p => ({ ...p, minScore: e.target.value }))} />
+                    <Form.Control value={gating.minScore} className="font-monospace" onChange={e => setGating(p => ({ ...p, minScore: e.target.value }))} />
                   </div>
                   <div>
                     <Lbl hint="0-100">Min completion %</Lbl>
-                    <Form.Control value={gating.minComplete} style={{ fontFamily: MONO }} onChange={e => setGating(p => ({ ...p, minComplete: e.target.value }))} />
+                    <Form.Control value={gating.minComplete} className="font-monospace" onChange={e => setGating(p => ({ ...p, minComplete: e.target.value }))} />
                   </div>
                 </div>
               )}
               {gating.mode === 'disabled' && (
-                <div style={{ padding: '11px 13px', background: G50, borderRadius: 4, fontSize: 13, color: G500, border: '1px solid ' + BORDER }}>
+                <div className="sc-gating-disabled">
                   No gating applied. All sections accessible immediately.
                 </div>
               )}
@@ -498,29 +775,26 @@ export default function StepConfigure({
       </div>
 
       {/* ── Course runs card ── */}
-      <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 14, background: WHITE }}>
-        <div style={{
-          padding: '12px 20px', borderBottom: '1px solid ' + BORDER,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
+      <div className="sc-card">
+        <div className="sc-card-header">
           <div>
-            <span style={{ fontWeight: 600, fontSize: 14, color: G700 }}>Course runs</span>
-            <span style={{ fontSize: 12, color: G500, marginLeft: 8 }}>
+            <span className="sc-card-title">Course runs</span>
+            <span className="sc-runs-sub">
               Grouped by target org - source = Demo template - Target Run only editable
             </span>
           </div>
-          <div style={{ fontSize: 12 }}>
+          <div>
             {checking && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: G500 }}>
+              <span className="sc-runs-checking">
                 <Spinner animation="border" size="sm" />
                 {'Checking ' + rows.length + ' keys...'}
               </span>
             )}
             {!checking && validated && nConf === 0 && (
-              <span style={{ color: SUCCESS, fontWeight: 600 }}>{'All ' + rows.length + ' keys available'}</span>
+              <span className="sc-runs-ok">{'All ' + rows.length + ' keys available'}</span>
             )}
             {!checking && validated && nConf > 0 && (
-              <span style={{ color: DANGER, fontWeight: 600 }}>{nConf + ' of ' + rows.length + ' conflict' + (nConf !== 1 ? 's' : '')}</span>
+              <span className="sc-runs-err">{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' found in ' + rows.length + ' course rerun' + (rows.length !== 1 ? 's' : '') + ' scheduled'}</span>
             )}
           </div>
         </div>
@@ -530,218 +804,92 @@ export default function StepConfigure({
           {orgGroups.map(({ orgCode, orgName, orgRows, orgErr }) => {
             const isOpen = expandedOrg[orgCode] !== false;
             const activeOrgTab = orgActiveTab[orgCode] || 'courses';
+            const orgConflictsKey = runId + ':' + orgCode + ':' + orgRows.map(r => (conflicts[r.idx] || '') + (courseIdTooLong[r.idx] ? '!' : '')).join(',');
+            const orgInitialExpanded = Object.fromEntries(
+              orgRows.flatMap(r => (conflicts[r.idx] ? [[r.id, true]] : [])),
+            );
             const orgRoster = getOrgRoster(orgCode);
             const filledMembers = orgRoster.filter(r => r.email).length;
             const coursesLabel = 'Courses (' + orgRows.length + ')';
             const teamLabel = 'Team & Access' + (filledMembers > 0 ? ' (' + filledMembers + ')' : '');
 
             return (
-              <div key={orgCode} style={{ borderBottom: '1px solid ' + BORDER }}>
+              <div key={orgCode} className="sc-org-group">
                 {/* Org header */}
                 <div
                   onClick={() => setExpandedOrg(p => ({ ...p, [orgCode]: !isOpen }))}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 16px', cursor: 'pointer',
-                    background: orgErr ? '#fff5f5' : G50,
-                    borderLeft: '4px solid ' + (orgErr ? DANGER : BRAND),
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '.85'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                  className={`sc-org-header${orgErr ? ' sc-org-header--err' : ''}`}
                 >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: orgErr ? DANGER : BRAND }}>{orgCode}</span>
-                  <span style={{ fontSize: 12, color: G500 }}>{orgName + ' - ' + orgRows.length + ' course' + (orgRows.length !== 1 ? 's' : '')}</span>
+                  <span className="sc-org-code">{orgName} ({orgCode})</span>
+                  <span className="sc-org-meta">{orgRows.length + ' course' + (orgRows.length !== 1 ? 's' : '')}</span>
                   {orgErr && (
-                    <Badge variant="danger" pill style={{ fontSize: 11, lineHeight: 1.5 }}>conflict</Badge>
+                    <Badge variant="danger" pill className="sc-badge-sm">conflict</Badge>
                   )}
                   {filledMembers > 0 && (
-                    <Badge variant="info" pill style={{ fontSize: 11, lineHeight: 1.5 }}>{filledMembers + ' member' + (filledMembers !== 1 ? 's' : '')}</Badge>
+                    <Badge variant="info" pill className="sc-badge-sm">{filledMembers + ' member' + (filledMembers !== 1 ? 's' : '')}</Badge>
                   )}
-                  <div style={{ flex: 1 }} />
-                  <span style={{ fontSize: 11, color: G500 }}>{isOpen ? '▲ collapse' : '▼ expand'}</span>
+                  <div className="sc-org-spacer" />
+                  <span className="sc-org-toggle-text">{isOpen ? '▲ collapse' : '▼ expand'}</span>
                 </div>
 
                 {isOpen && (
                   <>
                     {/* Per-org tab bar */}
-                    <div style={{ display: 'flex', borderBottom: '1px solid ' + BORDER, background: WHITE, padding: '0 4px' }}>
-                      {[{ id: 'courses', label: coursesLabel }, { id: 'team', label: teamLabel }].map(t => {
-                        const active = activeOrgTab === t.id;
-                        return (
-                          <div
-                            key={t.id}
-                            onClick={e => { e.stopPropagation(); setOrgActiveTab(p => ({ ...p, [orgCode]: t.id })); }}
-                            style={{
-                              padding: '8px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                              borderBottom: '2px solid ' + (active ? BRAND : 'transparent'),
-                              color: active ? BRAND : G500, userSelect: 'none', transition: 'color .1s',
-                            }}
-                          >
-                            {t.label}
-                          </div>
-                        );
-                      })}
+                    <div className="sc-org-tabs">
+                      {[{ id: 'courses', label: coursesLabel }, { id: 'team', label: teamLabel }].map(t => (
+                        <div
+                          key={t.id}
+                          onClick={e => { e.stopPropagation(); setOrgActiveTab(p => ({ ...p, [orgCode]: t.id })); }}
+                          className={`sc-org-tab${activeOrgTab === t.id ? ' sc-org-tab--active' : ''}`}
+                        >
+                          {t.label}
+                        </div>
+                      ))}
                     </div>
 
                     {/* ── Courses tab ── */}
                     {activeOrgTab === 'courses' && (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid ' + BORDER, background: WHITE }}>
-                              <th style={{ padding: '7px 8px 7px 20px', width: 28 }} />
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: SUCCESS, background: SUCCESS_BG, whiteSpace: 'nowrap', borderBottom: '2px solid ' + SUCCESS }}>Course Name</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: SUCCESS, background: SUCCESS_BG, whiteSpace: 'nowrap', borderBottom: '2px solid ' + SUCCESS }}>Src Org</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: SUCCESS, background: SUCCESS_BG, whiteSpace: 'nowrap', borderBottom: '2px solid ' + SUCCESS }}>Src Course #</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: SUCCESS, background: SUCCESS_BG, whiteSpace: 'nowrap', borderBottom: '2px solid ' + SUCCESS }}>Src Run</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: BRAND, background: BRAND_LT, whiteSpace: 'nowrap', borderBottom: '2px solid ' + BRAND }}>Target Org</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: BRAND, background: BRAND_LT, whiteSpace: 'nowrap', borderBottom: '2px solid ' + BRAND }}>Target Course #</th>
-                              <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: BRAND, background: BRAND_LT, whiteSpace: 'nowrap', borderBottom: '2px solid ' + BRAND }}>Target Run</th>
-                              <th style={{ padding: '7px 10px', width: 120 }} />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orgRows.map(r => {
-                              const ct = conflicts[r.idx];
-                              const ctLabel = ct ? CONFLICT_LABEL[ct] : null;
-                              return (
-                                <tr key={r.id} style={{
-                                  borderBottom: '1px solid ' + BORDER,
-                                  background: ct === 'exists' ? '#fff5f5' : ct ? '#fffbf0' : WHITE,
-                                  borderLeft: '3px solid ' + (ct === 'exists' ? DANGER : ct ? WARNING_BDR : 'transparent'),
-                                }}>
-                                  <td style={{ padding: '7px 8px 7px 18px' }}>
-                                    {checking
-                                      ? <Spinner animation="border" size="sm" />
-                                      : ct
-                                        ? <span style={{ cursor: 'help', fontSize: 13 }}>{ct === 'exists' ? '🚫' : '⚠️'}</span>
-                                        : validated
-                                          ? <span style={{ color: SUCCESS, fontSize: 12 }}>✓</span>
-                                          : null}
-                                  </td>
-                                  <td style={{ padding: '5px 10px', color: G700, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.name}</td>
-                                  <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcOrg}</td>
-                                  <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcNum}</td>
-                                  <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 11, color: SUCCESS, whiteSpace: 'nowrap', background: '#f4fbf6' }}>{r.srcRun}</td>
-                                  {/* Target Org and Target Course # are READ-ONLY plain text cells */}
-                                  <td style={{ padding: '7px 10px', background: BRAND_XLT, fontFamily: MONO, fontSize: 11, color: BRAND, whiteSpace: 'nowrap' }}>{r.org}</td>
-                                  <td style={{ padding: '7px 10px', background: BRAND_XLT, fontFamily: MONO, fontSize: 11, color: BRAND, whiteSpace: 'nowrap' }}>{r.num}</td>
-                                  {/* Target Run is the ONLY editable column */}
-                                  <td style={{ padding: '5px 8px', background: BRAND_XLT }}>
-                                    <EditableRunCell
-                                      value={r.run}
-                                      onChange={v => updateRunOverride(r.id, v)}
-                                      hasError={!!ct}
-                                    />
-                                  </td>
-                                  <td style={{ padding: '7px 10px', fontSize: 12, whiteSpace: 'nowrap' }}>
-                                    {ct && !checking && (
-                                      <span style={{ color: ct === 'exists' ? DANGER : WARNING, fontWeight: 500 }}>{ctLabel}</span>
-                                    )}
-                                    {ct === 'exists' && !checking && (
-                                      <button
-                                        onClick={() => removeRow(r.idx)}
-                                        style={{ color: DANGER, marginLeft: 8, padding: '2px 6px', fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
-                                      >
-                                        x Remove
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                      <div className="bulk-rerun-course-table">
+                        <DataTable
+                          key={orgConflictsKey}
+                          isExpandable
+                          renderRowSubComponent={renderCourseRunSubRow}
+                          columns={courseRunColumns}
+                          data={orgRows.map(r => ({ ...r, conflict: conflicts[r.idx], lenErr: courseIdTooLong[r.idx] }))}
+                          itemCount={orgRows.length}
+                          initialState={{ expanded: orgInitialExpanded }}
+                          initialTableOptions={{ getRowId: row => row.id, autoResetSelectedRows: false, autoResetExpanded: false }}
+                        >
+                          <DataTable.Table isStriped={false} />
+                          <DataTable.EmptyTable content="No courses." />
+                        </DataTable>
                       </div>
                     )}
 
                     {/* ── Team & Access tab ── */}
                     {activeOrgTab === 'team' && (
-                      <div style={{ padding: '16px 20px' }}>
+                      <div className="sc-team-content">
                         <Alert variant="info" className="mb-3 py-2">
-                          <strong style={{ display: 'block', marginBottom: 2 }}>Course Assignment Roster (CAR)</strong>
+                          <strong className="sc-alert-title">Course Assignment Roster (CAR)</strong>
                           {'Add instructors and admins for ' + (orgName || orgCode) + '. Each person will be granted course access roles across all courses for this organization.'}
-                          <div style={{ marginTop: 6, fontSize: 13, color: G700 }}>
-                            <span style={{ fontWeight: 600 }}>Note:</span>
+                          <div className="sc-car-note">
+                            <strong>Note:</strong>
                             {' Each email must belong to an existing, activated platform account — Studio roles cannot be assigned without one.'}
                           </div>
                         </Alert>
-                        <div style={{ overflowX: 'auto', marginBottom: 10 }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                            <thead>
-                              <tr style={{ borderBottom: '2px solid ' + BORDER, background: G50 }}>
-                                {['Email address', 'Studio role', 'Discussion role', 'Account status', ''].map(h => (
-                                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: G700, whiteSpace: 'nowrap' }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {orgRoster.map((member, i) => {
-                                const trimmed = member.email.trim();
-                                const apiStatus = emailStatus[trimmed];
-                                let statusLabel, statusColor, statusIcon;
-                                if (!trimmed) {
-                                  statusLabel = '—'; statusColor = G300; statusIcon = null;
-                                } else if (!trimmed.includes('@')) {
-                                  statusLabel = 'Invalid email'; statusColor = DANGER; statusIcon = '✗';
-                                } else if (apiStatus === 'checking') {
-                                  statusLabel = 'Checking…'; statusColor = G500; statusIcon = null;
-                                } else if (apiStatus === 'found') {
-                                  statusLabel = 'Account found'; statusColor = SUCCESS; statusIcon = '✓';
-                                } else if (apiStatus === 'not_found') {
-                                  statusLabel = 'No account found'; statusColor = DANGER; statusIcon = '✗';
-                                } else if (apiStatus === 'unknown') {
-                                  statusLabel = 'Lookup failed'; statusColor = WARNING; statusIcon = '⚠';
-                                } else {
-                                  statusLabel = 'Pending…'; statusColor = G300; statusIcon = null;
-                                }
-                                return (
-                                  <tr key={i} style={{ borderBottom: '1px solid ' + BORDER, background: apiStatus === 'not_found' ? DANGER_BG : WHITE }}>
-                                    <td style={{ padding: '6px 8px' }}>
-                                      <Form.Control
-                                        size="sm"
-                                        value={member.email}
-                                        onChange={e => updateOrgRoster(orgCode, i, 'email', e.target.value)}
-                                        placeholder="instructor@example.org"
-                                        style={{ minWidth: 220 }}
-                                        isInvalid={apiStatus === 'not_found' || (!trimmed.includes('@') && trimmed.length > 0)}
-                                      />
-                                    </td>
-                                    <td style={{ padding: '6px 8px' }}>
-                                      <Form.Control as="select" size="sm" value={member.studio} onChange={e => updateOrgRoster(orgCode, i, 'studio', e.target.value)} style={{ width: 'auto' }}>
-                                        <option value="admin">Admin</option>
-                                        <option value="staff">Staff</option>
-                                        <option value="data_researcher">Data researcher</option>
-                                      </Form.Control>
-                                    </td>
-                                    <td style={{ padding: '6px 8px' }}>
-                                      <Form.Control as="select" size="sm" value={member.discussion} onChange={e => updateOrgRoster(orgCode, i, 'discussion', e.target.value)} style={{ width: 'auto' }}>
-                                        <option value="discussion_admin">Discussion admin</option>
-                                        <option value="moderator">Moderator</option>
-                                        <option value="none">None</option>
-                                      </Form.Control>
-                                    </td>
-                                    <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
-                                      {apiStatus === 'checking'
-                                        ? <Spinner animation="border" size="sm" style={{ width: 14, height: 14 }} />
-                                        : (
-                                          <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>
-                                            {statusIcon && <span style={{ marginRight: 4 }}>{statusIcon}</span>}
-                                            {statusLabel}
-                                          </span>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '6px 8px' }}>
-                                      <button onClick={() => removeOrgMember(orgCode, i)} style={{ color: DANGER, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>✕</button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                        <div className="bulk-rerun-team-table">
+                          <DataTable
+                            columns={teamColumns}
+                            data={orgRoster.map(m => ({ ...m, orgCode, apiStatus: emailStatus[m.email.trim()] }))}
+                            itemCount={orgRoster.length}
+                            initialTableOptions={{ autoResetSelectedRows: false }}
+                          >
+                            <DataTable.Table isStriped={false} />
+                            <DataTable.EmptyTable content="No team members." />
+                          </DataTable>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                        <div className="sc-team-footer">
                           <Button variant="outline-primary" size="sm" onClick={() => addOrgMember(orgCode)}>+ Add team member</Button>
                           {filledMembers > 0
                             ? (
@@ -754,7 +902,7 @@ export default function StepConfigure({
                               />
                             )
                             : (
-                              <span style={{ fontSize: 12, color: G500, fontStyle: 'italic' }}>
+                              <span className="sc-team-empty">
                                 No team members added - provisioner account will be retained.
                               </span>
                             )}
@@ -769,27 +917,32 @@ export default function StepConfigure({
         </div>
 
         {/* Table footer */}
-        <div style={{
-          padding: '8px 14px', borderTop: '1px solid ' + BORDER,
-          fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: nConf > 0 && validated ? DANGER_BG : WHITE,
-        }}>
-          <span style={{ color: G500 }}>
+        <div className={`sc-table-footer${(nConf > 0 || nLenErr > 0) && validated ? ' sc-table-footer--err' : ''}`}>
+          <span className="sc-table-footer-note">
             All {rows.length} target keys validated. Run ID defaults to shared identifier. Target Run is the only editable column.
           </span>
+          {hasAnyInvalidRunChars && (
+            <span className="sc-table-footer-conflict">Invalid characters - allowed: letters, digits, _ - ~ .</span>
+          )}
+          {validated && nLenErr > 0 && (
+            <span className="sc-table-footer-conflict">{nLenErr + ' course ID' + (nLenErr !== 1 ? 's' : '') + ' exceed ' + COURSE_ID_MAX_COMBINED + '-char limit'}</span>
+          )}
           {validated && nConf > 0 && (
-            <span style={{ color: DANGER, fontWeight: 600 }}>{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' must be resolved'}</span>
+            <span className="sc-table-footer-conflict">{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' must be resolved'}</span>
           )}
         </div>
       </div>
 
       {/* ── Bottom action bar ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="sc-action-bar">
         <Button variant="outline-primary" onClick={onBack}>Back</Button>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="sc-action-bar-right">
+          {validated && nLenErr > 0 && (
+            <span className="sc-conflict-msg">{nLenErr + ' course ID' + (nLenErr !== 1 ? 's' : '') + ' exceed ' + COURSE_ID_MAX_COMBINED + ' chars'}</span>
+          )}
           {validated && nConf > 0 && (
             <>
-              <span style={{ fontSize: 13, color: DANGER }}>{'Resolve ' + nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' first'}</span>
+              <span className="sc-conflict-msg">{'Resolve ' + nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' first'}</span>
               <Button
                 variant="danger"
                 onClick={() => setRows(p => p.filter((_, i) => !conflicts[i]).sort((a, b) => a.org.localeCompare(b.org)))}
@@ -799,13 +952,13 @@ export default function StepConfigure({
             </>
           )}
           {teamChecking > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: G500 }}>
-              <Spinner animation="border" size="sm" style={{ width: 14, height: 14 }} />
+            <span className="sc-checking-msg">
+              <Spinner animation="border" size="sm" className="sc-spinner-sm" />
               {'Validating ' + teamChecking + ' team account' + (teamChecking !== 1 ? 's' : '') + '…'}
             </span>
           )}
           {teamInvalid > 0 && (
-            <span style={{ fontSize: 13, color: DANGER }}>
+            <span className="sc-conflict-msg">
               {teamInvalid + ' team member' + (teamInvalid !== 1 ? ' accounts' : ' account') + ' not found on platform'}
             </span>
           )}

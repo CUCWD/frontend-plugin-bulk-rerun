@@ -55,9 +55,15 @@ export const useBatch = (batchId: string | null) => useQuery({
     return data;
   },
   enabled: !!batchId,
-  // v4 refetchInterval: (data, _query) => number | false
-  refetchInterval: (data: any) => {
-    if (['succeeded', 'failed', 'partial'].includes(data?.status)) return false;
+  // Stop retrying on 404 — the batch was rolled back (e.g. task failed inside
+  // an atomic block with CELERY_ALWAYS_EAGER) and will never appear.
+  retry: (failureCount: number, error: any) => {
+    if (error?.response?.status === 404) return false;
+    return failureCount < 3;
+  },
+  refetchInterval: (query: any) => {
+    if (['succeeded', 'failed', 'partial'].includes(query?.state?.data?.status)) return false;
+    if (query?.state?.status === 'error') return false;
     return 2000;
   },
 });
@@ -135,12 +141,16 @@ export const useSearchEmails = () => useMutation({
   },
 });
 
-export const useJobLogs = (jobId: string | null, since?: number) => useQuery({
-  queryKey: ['bulk-rerun-job-logs', jobId, since],
+export const useJobLogs = (jobId: string | null) => useQuery({
+  queryKey: ['bulk-rerun-job-logs', jobId],
   queryFn:  async () => {
     const { data } = await getAuthenticatedHttpClient()
-      .get(logsUrl(jobId!, since));
+      .get(logsUrl(jobId!));
     return data;
   },
   enabled: !!jobId,
+  refetchInterval: (data: any) => {
+    if (['succeeded', 'failed'].includes(data?.job_status)) return false;
+    return 2000;
+  },
 });

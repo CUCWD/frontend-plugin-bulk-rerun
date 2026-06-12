@@ -1,5 +1,5 @@
 // Converts the StepConfigure cfg object into the POST /batches/ request body.
-// org_team_members is flattened to a single array (one entry per person per org)
+// team_members is flattened to a single array (one entry per person per org)
 // because the API expects a flat list, not a nested object keyed by org.
 import { makeKey } from './courseKeys';
 
@@ -7,6 +7,13 @@ const FROM_MODE_TO_API: Record<string, string> = {
   course:   'individual',
   program:  'program_rerun',
   new_org:  'new_org',
+};
+
+// DRF DateTimeField with USE_TZ=True requires full ISO 8601 with timezone.
+// Date-only strings (e.g. "2026-08-01") are rejected as timezone-naive.
+const toIso = (d: string | undefined): string => {
+  if (!d) return '';
+  return d.includes('T') ? d : d + 'T00:00:00Z';
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,10 +39,10 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
       job_type: r.isNewOrg ? 'new_org' : 'individual',
     })),
     settings: {
-      course_start:             sched.start,
-      course_end:               sched.end,
-      enrollment_start:         sched.enrollStart,
-      enrollment_end:           sched.enrollEnd,
+      course_start:             toIso(sched.start),
+      course_end:               toIso(sched.end),
+      enrollment_start:         toIso(sched.enrollStart),
+      enrollment_end:           toIso(sched.enrollEnd),
       pacing:                   sched.pacing,
       course_mode:              certs.mode,
       cert_display:             certs.display,
@@ -43,16 +50,14 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
       student_gen_cert:         certs.studentGenCert,
       cert_on_dashboard:        certs.certOnDashboard,
       gating_mode:              gating.mode,
-      gating_template_id:       gating.templateId,
+      gating_template_id:       gating.templateId ?? '',
       remove_provisioner_after: removeOp,
     },
-    // org_team_members is flat across all orgs with the org code on each entry
-    org_team_members: Object.entries(orgRosters)
-      .flatMap(([org, members]: [string, any[]]) =>
+    team_members: Object.entries(orgRosters)
+      .flatMap(([_org, members]: [string, any[]]) =>
         members
           .filter((m: any) => m.email && m.email.includes('@'))
           .map((m: any) => ({
-            org,
             email:           m.email,
             studio_role:     m.studio,
             discussion_role: m.discussion,

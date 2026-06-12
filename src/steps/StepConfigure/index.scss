@@ -1,0 +1,491 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$sc-brand:       #006daa;
+$sc-brand-lt:    #deeef8;
+$sc-brand-xlt:   #eef6fb;
+$sc-success:     #178253;
+$sc-success-bg:  #d4edda;
+$sc-danger:      #c32d3a;
+$sc-danger-bg:   #fdf0f1;
+$sc-danger-bdr:  #f1aeb5;
+$sc-warning:     #856404;
+$sc-warning-bdr: #ffc107;
+$sc-g50:         #f8f9fa;
+$sc-g200:        #e0e0e0;
+$sc-g300:        #c8c8c8;
+$sc-g500:        #6c757d;
+$sc-g700:        #454545;
+$sc-g900:        #1f2937;
+$sc-border:      #dee2e6;
+$sc-mono:        "SFMono-Regular", "Courier New", monospace;
+
+// ── Shared card layout ────────────────────────────────────────────────────────
+.sc-card {
+  border: 1px solid $sc-border;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  background: #fff;
+}
+
+.sc-card-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid $sc-border;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sc-card-title    { font-weight: 600; font-size: 16px; color: $sc-g700; }
+.sc-card-subtitle { font-size: 14px; color: $sc-g500; }
+.sc-card-body     { padding: 16px 20px; }
+
+// ── Shared settings tab bar ───────────────────────────────────────────────────
+.sc-tabs {
+  display: flex;
+  border-bottom: 1px solid $sc-border;
+  background: $sc-g50;
+  padding: 0 20px;
+}
+
+.sc-tab {
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 2px solid transparent;
+  color: $sc-g500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color .12s;
+  white-space: nowrap;
+
+  &--active { border-bottom-color: $sc-brand; color: $sc-brand; }
+}
+
+// ── Form label helper ─────────────────────────────────────────────────────────
+.sc-lbl {
+  display: block !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: $sc-g700 !important;
+  margin-bottom: 4px !important;
+}
+
+.sc-lbl-hint {
+  font-weight: 400;
+  color: $sc-g500;
+  margin-left: 5px;
+  font-size: 14px;
+}
+
+// ── Toggle row ────────────────────────────────────────────────────────────────
+.sc-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid $sc-g200;
+}
+
+.sc-toggle__text  { padding-right: 16px; }
+.sc-toggle__label { font-size: 16px; font-weight: 500; color: $sc-g900; }
+
+.sc-toggle__hint {
+  display: block;
+  font-size: 14px;
+  color: $sc-g500;
+  margin-top: 2px;
+}
+
+.sc-toggle__switch {
+  width: 36px;
+  height: 20px;
+  accent-color: $sc-brand;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+// ── 2-column responsive grid ──────────────────────────────────────────────────
+.sc-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+// ── Field error text ──────────────────────────────────────────────────────────
+.sc-field-err {
+  font-size: 13px;
+  color: $sc-danger;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+// ── Run-ID field with inline indicator ───────────────────────────────────────
+.sc-run-field { position: relative; }
+
+.sc-run-indicator {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  pointer-events: none;
+
+  &--ok  { color: $sc-success; }
+  &--err { color: $sc-danger; }
+}
+
+.sc-run-msg {
+  font-size: 13px;
+  margin-top: 3px;
+  font-weight: 500;
+
+  &--ok  { color: $sc-success; }
+  &--err { color: $sc-danger; }
+}
+
+// ── Alert title helper ────────────────────────────────────────────────────────
+.sc-alert-title { display: block; margin-bottom: 2px; }
+
+// ── Gating mode grid ──────────────────────────────────────────────────────────
+.sc-gating-mode-wrap { margin-bottom: 16px; }
+
+.sc-gating-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sc-gating-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 2px solid $sc-border;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  transition: border .12s;
+
+  input[type="radio"] {
+    margin-top: 2px;
+    accent-color: $sc-brand;
+    flex-shrink: 0;
+  }
+
+  &--active { border-color: $sc-brand; background: $sc-brand-xlt; }
+}
+
+.sc-gating-option__title { font-size: 15px; font-weight: 600; color: $sc-g900; }
+.sc-gating-option__desc  { font-size: 14px; color: $sc-g500; margin-top: 2px; }
+.sc-gating-field         { margin-bottom: 12px; }
+
+.sc-gating-disabled {
+  padding: 11px 13px;
+  background: $sc-g50;
+  border-radius: 4px;
+  font-size: 15px;
+  color: $sc-g500;
+  border: 1px solid $sc-border;
+}
+
+// ── Course runs card header status ────────────────────────────────────────────
+.sc-runs-sub      { font-size: 14px; color: $sc-g500; margin-left: 8px; }
+
+.sc-runs-checking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: $sc-g500;
+  font-size: 14px;
+}
+
+.sc-runs-ok  { color: $sc-success; font-weight: 600; font-size: 14px; }
+.sc-runs-err { color: $sc-danger;  font-weight: 600; font-size: 14px; }
+
+// ── Per-org accordion ─────────────────────────────────────────────────────────
+.sc-org-group { border-bottom: 1px solid $sc-border; }
+
+.sc-org-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: $sc-g50;
+  border-left: 4px solid $sc-brand;
+
+  &:hover { opacity: .85; }
+
+  &--err { background: #fff5f5; border-left-color: $sc-danger; }
+}
+
+.sc-org-code {
+  font-size: 17px;
+  font-weight: 600;
+  color: $sc-brand;
+
+  .sc-org-header--err & { color: $sc-danger; }
+}
+
+.sc-org-meta        { font-size: 14px; color: $sc-g500; }
+.sc-org-spacer      { flex: 1; }
+.sc-org-toggle-text { font-size: 13px; color: $sc-g500; }
+
+// ── Per-org sub-tabs ──────────────────────────────────────────────────────────
+.sc-org-tabs {
+  display: flex;
+  border-bottom: 1px solid $sc-border;
+  background: #fff;
+  padding: 0 4px;
+}
+
+.sc-org-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  color: $sc-g500;
+  user-select: none;
+  transition: color .1s;
+
+  &--active { border-bottom-color: $sc-brand; color: $sc-brand; }
+}
+
+// ── Team section ──────────────────────────────────────────────────────────────
+.sc-team-content { padding: 16px 20px; }
+
+.sc-team-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sc-team-empty { font-size: 14px; color: $sc-g500; font-style: italic; }
+
+.sc-car-note { margin-top: 6px; font-size: 15px; color: $sc-g700; }
+
+// ── Team DataTable cells ──────────────────────────────────────────────────────
+.sc-team-cell {
+  padding: 6px 8px;
+  display: block;
+  font-size: 15px;
+  background: #fff;
+
+  &--err    { background: $sc-danger-bg; }
+  &--nowrap { white-space: nowrap; }
+}
+
+.sc-team-remove {
+  color: $sc-danger;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 0;
+}
+
+// ── Email account-status indicator ───────────────────────────────────────────
+.sc-email-status {
+  font-size: 14px;
+  font-weight: 500;
+
+  &--ok   { color: $sc-success; }
+  &--err  { color: $sc-danger; }
+  &--warn { color: $sc-warning; }
+  &--muted { color: $sc-g300; }
+
+  &__icon { margin-right: 4px; }
+}
+
+.sc-email-input { min-width: 220px; }
+
+// ── Course-run DataTable cells (index.jsx per-org tables) ─────────────────────
+.sc-cell {
+  padding: 6px 10px;
+  display: block;
+  font-size: 15px;
+
+  &--indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-left: 3px solid transparent;
+    min-width: 28px;
+    background: #fff;
+  }
+
+  // Source columns (green tint, monospace data)
+  &--src      { background: #f4fbf6; color: $sc-g700; min-width: 160px; }
+  &--src-mono { background: #f4fbf6; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: nowrap; }
+
+  // Target columns (blue tint, monospace)
+  &--tgt     { background: $sc-brand-xlt; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: nowrap; }
+  &--tgt-run { background: $sc-brand-xlt; font-size: 15px; padding: 0; overflow: visible; position: relative; }
+
+  // Conflict state overrides (applied alongside --src / --tgt / --indicator)
+  &--exists   { background: #fff5f5; }
+  &--conflict { background: #fffbf0; }
+
+  &--exists.sc-cell--indicator   { border-left-color: $sc-danger; }
+  &--conflict.sc-cell--indicator { border-left-color: $sc-warning-bdr; }
+}
+
+.sc-ok-check     { color: $sc-success; font-size: 14px; }
+.sc-conflict-icon { cursor: help; font-size: 15px; }
+
+// ── Conflict sub-row ──────────────────────────────────────────────────────────
+.sc-sub-row {
+  position: relative;
+  top: -1px;
+  padding: 5px 16px 6px;
+  border-left: 3px solid transparent;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+
+  &--exists   { background: #fff5f5; border-left-color: $sc-danger; }
+  &--conflict { background: #fffbf0; border-left-color: $sc-warning-bdr; }
+}
+
+.sc-remove-btn {
+  color: $sc-danger;
+  background: $sc-danger-bg;
+  border: 1px solid $sc-danger-bdr;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+// ── Table footer ──────────────────────────────────────────────────────────────
+.sc-table-footer {
+  padding: 8px 14px;
+  border-top: 1px solid $sc-border;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+
+  &--err { background: $sc-danger-bg; }
+}
+
+.sc-table-footer-note     { color: $sc-g500; }
+.sc-table-footer-conflict { color: $sc-danger; font-weight: 600; }
+
+// ── Bottom action bar ─────────────────────────────────────────────────────────
+.sc-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sc-action-bar-right { display: flex; gap: 10px; align-items: center; }
+.sc-conflict-msg     { font-size: 15px; color: $sc-danger; }
+
+.sc-checking-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  color: $sc-g500;
+}
+
+// ── Misc utilities ────────────────────────────────────────────────────────────
+.sc-spinner-sm { width: 14px !important; height: 14px !important; }
+.sc-select-auto { width: auto !important; }
+
+.sc-badge-xs { font-size: 12px !important; line-height: 1.5 !important; }
+.sc-badge-sm { font-size: 13px !important; line-height: 1.5 !important; }
+
+// ── DataTable overrides (replaces the <style> block in index.jsx) ─────────────
+
+.bulk-rerun-course-table {
+  overflow-x: auto;
+
+  // Fixed layout so th percentage widths are respected.
+  // Without this, columns size to content and equal widths aren't guaranteed.
+  table { table-layout: fixed; width: 100%; }
+
+  .pgn__data-table td          { padding: 0 !important; height: 1px; vertical-align: middle; }
+  .pgn__data-table-row td      { border-bottom: 1px solid $sc-border; }
+  .pgn__data-table td[colspan] { border-top: none !important; }
+  .pgn__data-table tbody tr:has(+ tr > td[colspan]) > td { border-bottom: none !important; }
+
+  // height: 100% works on block children when the parent td has an explicit height.
+  // Setting td { height: 1px } above is the standard CSS trick that enables this —
+  // the actual row height is still driven by content, the 1px just unlocks the % calc.
+  .sc-cell {
+    height: 100%;
+    align-content: center;
+  }
+
+  // Course name: wider column; allow text to wrap so the full name is readable.
+  .sc-cell--src {
+    min-width: unset;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .pgn__data-table thead {
+    // Indicator: fixed narrow; Course name: explicitly wider at 30%;
+    // the 6 data cols share equal 11% each (6 × 11% + 30% = 96%).
+    th:nth-child(1) { width: 36px; }
+    th:nth-child(2) { width: 30%; }
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5),
+    th:nth-child(6),
+    th:nth-child(7),
+    th:nth-child(8) { width: 11%; }
+
+    th:nth-child(2),
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5) {
+      background: $sc-success-bg;
+      color: $sc-success;
+      border-bottom: 2px solid $sc-success;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    th:nth-child(6),
+    th:nth-child(7),
+    th:nth-child(8) {
+      background: $sc-brand-lt;
+      color: $sc-brand;
+      border-bottom: 2px solid $sc-brand;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
+}
+
+.bulk-rerun-team-table {
+  overflow-x: auto;
+  margin-bottom: 10px;
+
+  .pgn__data-table td { padding: 0 !important; }
+
+  .pgn__data-table thead th {
+    background: $sc-g50;
+    color: $sc-g700;
+    border-bottom: 2px solid $sc-border;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
