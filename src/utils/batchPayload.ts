@@ -27,6 +27,9 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
     removeOp = true,
     gating = {},
     fromMode = 'course',
+    prog = null,
+    newOrgs = [],
+    courseDiscoveryEnabled = true,
   } = cfg;
 
   return {
@@ -63,5 +66,17 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
             discussion_role: m.discussion,
           }))
       ),
+    // Stored server-side so the progress UI can reconstruct display context
+    // (org names, program banner, mode flags) on any device or after refresh.
+    // existsSet is intentionally excluded — it is large and only needed at
+    // review time, not during progress tracking.
+    config_snapshot: {
+      rows,
+      prog,
+      newOrgs,
+      fromMode,
+      runId,
+      courseDiscoveryEnabled,
+    },
   };
 }

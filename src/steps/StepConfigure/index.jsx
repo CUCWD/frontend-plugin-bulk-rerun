@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button, Alert, Spinner, Form, Badge, DataTable } from '@openedx/paragon';
 
 import { useValidateCourseKeys, useSearchEmails } from '../../hooks';
-import { makeKey, validateRunId, detectConflict, COURSE_ID_MAX_COMBINED, RUN_ID_RE } from '../../utils/courseKeys';
+import { makeKey, validateRunId, detectConflict, isHardConflict, COURSE_ID_MAX_COMBINED, RUN_ID_RE } from '../../utils/courseKeys';
 import EditableRunCell from './EditableRunCell';
 import './index.scss';
 
@@ -184,6 +184,8 @@ export default function StepConfigure({
 
   const conflicts = effectiveRows.map((r, i) => detectConflict(r, effectiveRows, i, existsSet));
   const nConf = conflicts.filter(Boolean).length;
+  const nHardConf = conflicts.filter(isHardConflict).length;
+  const nExistsConf = conflicts.filter(ct => ct === 'exists').length;
 
   const courseIdTooLong = effectiveRows.map(
     r => r.org.length + r.num.length + r.run.length > COURSE_ID_MAX_COMBINED,
@@ -212,7 +214,7 @@ export default function StepConfigure({
         .map((r, i) => ({ ...r, idx: i }))
         .filter(r => r.org === orgCode)
         .sort((a, b) => a.srcNum.localeCompare(b.srcNum));
-      return { orgCode, orgName: orgRows[0]?.orgName, orgRows, orgErr: orgRows.some(r => !!conflicts[r.idx]) };
+      return { orgCode, orgName: orgRows[0]?.orgName, orgRows, orgErr: orgRows.some(r => isHardConflict(conflicts[r.idx])) };
     });
 
   // ── Scheduling validation — HOISTED above return() ─────────────────────────
@@ -793,8 +795,11 @@ export default function StepConfigure({
             {!checking && validated && nConf === 0 && (
               <span className="sc-runs-ok">{'All ' + rows.length + ' keys available'}</span>
             )}
-            {!checking && validated && nConf > 0 && (
-              <span className="sc-runs-err">{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' found in ' + rows.length + ' course rerun' + (rows.length !== 1 ? 's' : '') + ' scheduled'}</span>
+            {!checking && validated && nHardConf === 0 && nExistsConf > 0 && (
+              <span className="sc-runs-err">{nExistsConf + ' existing course' + (nExistsConf !== 1 ? 's' : '') + ' already exist'}</span>
+            )}
+            {!checking && validated && nHardConf > 0 && (
+              <span className="sc-runs-err">{nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '') + ' found in ' + rows.length + ' course rerun' + (rows.length !== 1 ? 's' : '') + ' scheduled'}</span>
             )}
           </div>
         </div>
@@ -917,7 +922,7 @@ export default function StepConfigure({
         </div>
 
         {/* Table footer */}
-        <div className={`sc-table-footer${(nConf > 0 || nLenErr > 0) && validated ? ' sc-table-footer--err' : ''}`}>
+        <div className={`sc-table-footer${(nHardConf > 0 || nLenErr > 0) && validated ? ' sc-table-footer--err' : ''}`}>
           <span className="sc-table-footer-note">
             All {rows.length} target keys validated. Run ID defaults to shared identifier. Target Run is the only editable column.
           </span>
@@ -927,8 +932,11 @@ export default function StepConfigure({
           {validated && nLenErr > 0 && (
             <span className="sc-table-footer-conflict">{nLenErr + ' course ID' + (nLenErr !== 1 ? 's' : '') + ' exceed ' + COURSE_ID_MAX_COMBINED + '-char limit'}</span>
           )}
-          {validated && nConf > 0 && (
-            <span className="sc-table-footer-conflict">{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' must be resolved'}</span>
+          {validated && nExistsConf > 0 && nHardConf === 0 && (
+            <span className="sc-table-footer-conflict">{nExistsConf + ' existing course' + (nExistsConf !== 1 ? 's' : '') + ' already exist'}</span>
+          )}
+          {validated && nHardConf > 0 && (
+            <span className="sc-table-footer-conflict">{nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '') + ' must be resolved'}</span>
           )}
         </div>
       </div>
@@ -962,7 +970,7 @@ export default function StepConfigure({
               {teamInvalid + ' team member' + (teamInvalid !== 1 ? ' accounts' : ' account') + ' not found on platform'}
             </span>
           )}
-          <Button variant="primary" disabled={!canReview} onClick={handleNext}>
+          <Button variant="primary" disabled={rows.length === 0 || !canReview} onClick={handleNext}>
             Review
           </Button>
         </div>

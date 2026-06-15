@@ -204,8 +204,15 @@ export default function JobProgress({
     if (typeof batch.phase === 'number') setPhase(batch.phase);
 
     if (Array.isArray(batch.jobs) && batch.jobs.length > 0) {
-      setCourseItems(prev => prev.map((item, i) => {
-        const job = batch.jobs[i];
+      // Match by target_course_key, not array index. The model's default ordering
+      // (-created_at) does not match courseItems order (position), so index-based
+      // mapping silently assigns the wrong logs and jobId to each course row.
+      const jobByKey = Object.fromEntries(
+        batch.jobs.map(j => [j.target_course_key, j])
+      );
+      setCourseItems(prev => prev.map(item => {
+        const targetKey = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : null;
+        const job = targetKey ? jobByKey[targetKey] : null;
         if (!job) return item;
         const apiStatus = mapApiStatus(job.status);
         const elapsed   = job.elapsed_seconds != null
@@ -527,7 +534,7 @@ export default function JobProgress({
         >
           {prog.icon && <span className="jp-prog-icon">{prog.icon}</span>}
           <div className="jp-prog-title" style={{ color: isNewOrg ? '#6f42c1' : (prog.color || '#006daa') }}>
-            {prog.name + ' - Job #BR-' + (batchId ? batchId.replace(/-/g, '').slice(0, 8).toUpperCase() : jobId)}
+            {prog.name + ' - Job #BR-' + ((batchId ? batchId : jobId.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase())}
             {isDryRun && <Badge variant="info" pill>DRY-RUN</Badge>}
             {isNewOrg && <Badge variant="primary" pill>New org onboarding</Badge>}
           </div>
@@ -537,7 +544,7 @@ export default function JobProgress({
       <div className="jp-card">
         <div className="jp-card-header">
           <div className="jp-card-header-left">
-            <span className="jp-card-title">{'Job #BR-' + (batchId ? batchId.replace(/-/g, '').slice(0, 8).toUpperCase() : jobId)}</span>
+            <span className="jp-card-title">{'Job #BR-' + ((batchId ? batchId : jobId.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase())}</span>
             <span className="jp-card-meta">{courseItems.length + ' runs - ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : '')}</span>
             {isPending && (
               <span style={{ marginLeft: 6, fontSize: 11, color: '#6c757d', display: 'inline-flex', alignItems: 'center', gap: 4 }}>

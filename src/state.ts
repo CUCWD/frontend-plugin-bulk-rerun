@@ -1,6 +1,7 @@
 // Hookstate singleton shared across the entire plugin. Covers wizard navigation
 // (bulkView, step), in-flight wizard data (rows, cfg), active job tracking, and run history.
 // History is written to localStorage on every save so it survives page refresh.
+// activeJobs are recovered server-side on mount via useRunningBatches (see StepProgress).
 //
 // IMPORTANT: all write operations (set/merge) use the module-level `bulkRerunState`
 // reference directly, never the component-scoped `s` from useHookstate. Using `s`
@@ -117,12 +118,25 @@ export const useBulkRerunState = () => {
     addActiveJob:   (job: ActiveJob) => {
       g.activeJobs.set([...(g.activeJobs.get({ noproxy: true }) as ActiveJob[]), job]);
     },
+    addActiveJobs:  (jobs: ActiveJob[]) => {
+      g.activeJobs.set([...(g.activeJobs.get({ noproxy: true }) as ActiveJob[]), ...jobs]);
+    },
     removeActiveJob: (id: string) => {
       g.activeJobs.set((g.activeJobs.get({ noproxy: true }) as ActiveJob[]).filter(j => j.id !== id));
     },
     flipActiveJobDry: (id: string) => {
       g.activeJobs.set(
         (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(j => j.id === id ? { ...j, isDry: false } : j)
+      );
+    },
+    // Atomically promotes a completed dry-run job to a real submission. Sets isDry,
+    // batchId, and isPending together so JobProgress remounts exactly once with the
+    // correct real batchId rather than the stale dry-run batchId.
+    promoteJobToReal: (id: string, batchId: string | null) => {
+      g.activeJobs.set(
+        (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(j =>
+          j.id === id ? { ...j, isDry: false, batchId, isPending: false } : j
+        )
       );
     },
     updateActiveJobBatchId: (id: string, batchId: string | null) => {
@@ -148,7 +162,14 @@ export const useBulkRerunState = () => {
     // -- history --
     history: s.history.get({ noproxy: true }) as HistoryEntry[],
     saveHistory: (entry: HistoryEntry) => {
-      const current = g.history.get({ noproxy: true }) as HistoryEntry[];
+      // Read from localStorage as the source of truth rather than g.history.get()
+      // so that rapid back-to-back saves (two jobs completing close together) don't
+      // read stale hookstate and silently drop the previous entry.
+      let current: HistoryEntry[] = [];
+      try {
+        const raw = localStorage.getItem('bulk_rerun_history');
+        if (raw) current = JSON.parse(raw) as HistoryEntry[];
+      } catch (_e) { /* ignore */ }
       const updated = [entry, ...current].slice(0, 100);
       g.history.set(updated as any);
       try { localStorage.setItem('bulk_rerun_history', JSON.stringify(updated)); }
@@ -160,6 +181,7 @@ export const useBulkRerunState = () => {
       g.step.set(0);
       g.rows.set([]);
       (g as any).prog.set(null);
+      (g as any).cfg.set(null);
       g.newOrgs.set([]);
       g.viewingEntry.set(null);
     },

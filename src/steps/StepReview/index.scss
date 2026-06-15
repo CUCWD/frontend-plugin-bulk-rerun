@@ -135,6 +135,7 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
 
   &--mono   { font-family: $sr-mono; }
   &--ok     { color: $sr-success; }
+  &--warn   { color: $sr-warning; }
   &--danger { color: $sr-danger; }
 }
 
@@ -214,67 +215,76 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   color: $sr-g500;
 }
 
-// ── Runs table (native <table>, not DataTable) ────────────────────────────────
-.sr-runs-table-wrap { overflow-x: auto; }
+// ── Runs table (Paragon DataTable) ────────────────────────────────────────────
+.sr-runs-table-wrap {
+  overflow-x: auto;
 
-.sr-runs-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 15px;
-  table-layout: fixed;
+  table { table-layout: fixed; width: 100%; }
 
-  // Indicator: fixed narrow; Course name (col 2): 30%;
-  // the 6 data cols share equal 11% each (6 × 11% + 30% = 96%).
-  th:nth-child(1) { width: 36px; }
-  th:nth-child(2) { width: 30%; }
-  th:nth-child(3),
-  th:nth-child(4),
-  th:nth-child(5),
-  th:nth-child(6),
-  th:nth-child(7),
-  th:nth-child(8) { width: 11%; }
+  .pgn__data-table td          { padding: 0 !important; height: 1px; vertical-align: middle; }
+  .pgn__data-table-row td      { border-bottom: 1px solid $sr-border; }
 
-  thead tr { border-bottom: 1px solid $sr-border; background: $sr-white; }
+  // height: 100% on block children works when the parent td has height: 1px.
+  .sr-cell { height: 100%; align-content: center; }
 
-  th {
-    padding: 6px 10px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 14px;
-    white-space: nowrap;
+  .pgn__data-table thead {
+    th:nth-child(1) { width: 48px; }
+    th:nth-child(2) { width: 34%; }
+    th:nth-child(3) { width: 9%;  }
+    th:nth-child(4) { width: 12%; }
+    th:nth-child(5) { width: 8%;  }
+    th:nth-child(6) { width: 18%; }
+    th:nth-child(7) { width: 12%; }
+    th:nth-child(8) { width: 8%;  }
 
-    &.sr-th-indicator { padding: 6px 8px 6px 20px; }
-
-    &.sr-th-src {
-      color: $sr-success;
+    th:nth-child(2),
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5) {
       background: $sr-success-bg;
+      color: $sr-success;
       border-bottom: 2px solid $sr-success;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
     }
 
-    &.sr-th-tgt {
-      color: $sr-brand;
+    th:nth-child(6),
+    th:nth-child(7),
+    th:nth-child(8) {
       background: $sr-brand-lt;
+      color: $sr-brand;
       border-bottom: 2px solid $sr-brand;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
     }
   }
+}
 
-  td {
-    padding: 6px 10px;
-    vertical-align: middle;
-    border-bottom: 1px solid $sr-border;
-    font-size: 15px;
+// ── DataTable cell variants ────────────────────────────────────────────────────
+.sr-cell {
+  padding: 6px 10px;
+  display: block;
+  font-size: 15px;
 
-    &.sr-td-indicator { padding: 6px 8px 6px 18px; }
-    &.sr-td-src       { background: #f4fbf6; color: $sr-g700; white-space: normal; word-break: break-word; }
-    &.sr-td-src-mono  { background: #f4fbf6; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: nowrap; }
-    &.sr-td-tgt-mono  { background: $sr-brand-xlt; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: nowrap; }
+  &--indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-left: 3px solid transparent;
+    background: $sr-white;
   }
 
-  tbody tr {
-    &.sr-row--exists { background: #fff5f5; border-left: 3px solid $sr-danger; }
-    &.sr-row--dup    { background: #fffbf0; border-left: 3px solid $sr-warning-bdr; }
-    &.sr-row--ok     { border-left: 3px solid transparent; }
-  }
+  &--src      { background: #f4fbf6; color: $sr-g700; white-space: normal; word-break: break-word; }
+  &--src-mono { background: #f4fbf6; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: normal; word-break: break-all; }
+  &--tgt-mono { background: $sr-brand-xlt; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: normal; word-break: break-all; }
+
+  &--exists   { background: #fff5f5; }
+  &--conflict { background: #fffbf0; }
+
+  &--exists.sr-cell--indicator   { border-left-color: $sr-danger; }
+  &--conflict.sr-cell--indicator { border-left-color: $sr-warning-bdr; }
 }
 
 .sr-conflict-icon { cursor: help; font-size: 15px; }

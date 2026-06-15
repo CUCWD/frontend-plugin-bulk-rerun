@@ -248,7 +248,7 @@ function BulkRerunsTabInner() {
                       History
                     </button>
                     <span style={{ fontSize: 13, color: G500 }}>
-                      {'Viewing run BR-' + viewingEntry.id + ' - ' + fmtDate(viewingEntry.createdAt)}
+                      {'Viewing run BR-' + (viewingEntry.batchId || viewingEntry.id.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase() + ' - ' + fmtDate(viewingEntry.createdAt)}
                     </span>
                   </div>
                   <JobProgress

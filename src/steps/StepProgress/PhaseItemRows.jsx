@@ -16,6 +16,9 @@ const LOG_CLS = { ok: 'pi-log-ok', info: 'pi-log-info', warn: 'pi-log-warn', err
 function PhaseItem({ item }) {
   const [isOpen, setIsOpen] = useState(false);
   const autoOpenedRef = useRef(false);
+  const [liveElapsed, setLiveElapsed] = useState('');
+  const intervalRef = useRef(null);
+  const baseTimeRef = useRef(null);
 
   // Auto-expand the log panel when a job starts running or fails so the user
   // sees live output without having to click. Once opened this way the row
@@ -26,6 +29,38 @@ function PhaseItem({ item }) {
       setIsOpen(true);
     }
   }, [item.status]);
+
+  // Sync the local base time whenever the server-reported elapsed snapshot
+  // arrives (every ~2 s poll). This keeps the live counter accurate without
+  // restarting the interval and causing a visual jump.
+  useEffect(() => {
+    if (item.status !== 'running') return;
+    const serverSec = parseFloat(item.elapsed) || 0;
+    if (serverSec > 0) {
+      baseTimeRef.current = Date.now() - serverSec * 1000;
+    }
+  }, [item.elapsed, item.status]);
+
+  // Start a 1-second tick while a job is running so elapsed time advances
+  // smoothly between server polls (otherwise nothing moves for 2 s at a time).
+  useEffect(() => {
+    clearInterval(intervalRef.current);
+    if (item.status === 'running') {
+      if (!baseTimeRef.current) baseTimeRef.current = Date.now();
+      intervalRef.current = setInterval(() => {
+        setLiveElapsed(((Date.now() - baseTimeRef.current) / 1000).toFixed(0) + 's');
+      }, 1000);
+    } else {
+      baseTimeRef.current = null;
+      setLiveElapsed('');
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [item.status]);
+
+  const displayElapsed = item.status === 'running'
+    ? (liveElapsed || item.elapsed || '')
+    : (item.elapsed || '');
+
   const label      = item.r ? item.r.name : (item.name || item.code || item.org || '');
   const sublabel   = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : (item.code || '');
   const statusMod  = ` pi-status--${item.status}`;
@@ -44,7 +79,7 @@ function PhaseItem({ item }) {
             : '○'}
           {' '}{item.status === 'success' ? 'Complete' : item.status === 'running' ? 'Running' : item.status === 'failed' ? 'Failed' : 'Pending'}
         </div>
-        <div className="pi-elapsed">{item.elapsed}</div>
+        <div className="pi-elapsed">{displayElapsed}</div>
         <span className="pi-toggle">{isOpen ? '▲' : '▼'}</span>
       </div>
 

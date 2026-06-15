@@ -4,41 +4,15 @@
 // History is stored in hookstate and persisted to localStorage via state.saveHistory().
 import { useState } from 'react';
 import { Button, Badge } from '@openedx/paragon';
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const BRAND    = '#006daa';
-const BRAND_LT = '#deeef8';
-const SUCCESS  = '#178253';
-const SUCCESS_BG = '#d4edda';
-const DANGER   = '#c32d3a';
-const DANGER_BG = '#fdf0f1';
-const WARNING  = '#856404';
-const WARNING_BG = '#fff8e6';
-const INFO     = '#055160';
-const INFO_BG  = '#e8f7fc';
-const G50      = '#f8f9fa';
-const G100     = '#f0f0f0';
-const G200     = '#e0e0e0';
-const G400     = '#9e9e9e';
-const G500     = '#6c757d';
-const G700     = '#454545';
-const G900     = '#1f2937';
-const BORDER   = '#dee2e6';
-const WHITE    = '#fff';
-const MONO     = '"SFMono-Regular","Courier New",monospace';
+import './HistoryView.scss';
 
 const fmtDate      = iso => { try { return new Date(iso).toLocaleString(); }          catch (_e) { return iso || ''; } };
 const fmtDateShort = iso => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (_e) { return iso || ''; } };
 
-// Hoisted maps — avoids object-literal subscript inline in JSX
-const STATUS_BG = { succeeded: SUCCESS_BG, partial: WARNING_BG, failed: DANGER_BG, running: BRAND_LT };
-const STATUS_C  = { succeeded: SUCCESS,    partial: WARNING,    failed: DANGER,    running: BRAND };
-const STATUS_LBL = { succeeded: 'Succeeded', partial: 'Partial', failed: 'Failed', running: 'Running' };
-const BADGE_V   = { succeeded: 'success', partial: 'warning', failed: 'danger', running: 'primary' };
+const STATUS_LBL  = { succeeded: 'Succeeded', partial: 'Partial', failed: 'Failed', running: 'Running' };
+const BADGE_V     = { succeeded: 'success', partial: 'warning', failed: 'danger', running: 'primary' };
 const MODE_LABELS = { program: 'By Program', neworg: 'New Org', course: 'By Course', individual: 'Individual' };
 
-function statusBg(s)  { return STATUS_BG[s]  || G200; }
-function statusC(s)   { return STATUS_C[s]   || G500; }
 function statusLbl(s) { return STATUS_LBL[s] || s; }
 function modeLabel(e) { return MODE_LABELS[e.mode] || e.mode; }
 
@@ -59,7 +33,7 @@ function exportOrgText(entry, group) {
   return [
     'Bulk Rerun Summary  -  ' + group.orgName + ' (' + group.org + ')',
     '-'.repeat(60),
-    'Job ID:     BR-' + entry.id,
+    'Job ID:     BR-' + (entry.batchId || entry.id.replace(/^recovered-/, '')),
     'Run ID:     ' + entry.targetRun,
     'Date:       ' + fmtDate(entry.createdAt),
     'Created by: ' + entry.createdBy,
@@ -67,7 +41,7 @@ function exportOrgText(entry, group) {
     'Dry run:    ' + (entry.isDryRun ? 'Yes  -  no changes applied' : 'No'),
     '',
     'Course Changes:',
-    ...group.jobs.map(j => '  ' + (j.status === 'success' ? 'v' : 'x') + ' ' + j.srcKey + '\n       -> ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
+    ...group.jobs.map(j => '  ' + (j.status === 'success' ? '✓' : '✗') + ' ' + j.srcKey + '\n       -> ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
     '',
     'Total: ' + group.jobs.length + ' courses  |  ' +
       group.jobs.filter(j => j.status === 'success').length + ' succeeded  |  ' +
@@ -83,7 +57,7 @@ function exportBatchText(entry) {
   return [
     'BULK RERUN COMPLETE SUMMARY',
     '='.repeat(60),
-    'Job ID:     BR-' + entry.id,
+    'Job ID:     BR-' + (entry.batchId || entry.id.replace(/^recovered-/, '')),
     'Run ID:     ' + entry.targetRun,
     'Date:       ' + fmtDate(entry.createdAt),
     'Created by: ' + entry.createdBy,
@@ -97,7 +71,7 @@ function exportBatchText(entry) {
       '='.repeat(60),
       'ORG: ' + g.orgName + ' (' + g.org + ')',
       '-'.repeat(40),
-      ...g.jobs.map(j => '  ' + (j.status === 'success' ? 'v' : 'x') + ' ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
+      ...g.jobs.map(j => '  ' + (j.status === 'success' ? '✓' : '✗') + ' ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
       '  Summary: ' + g.jobs.filter(j => j.status === 'success').length + '/' + g.jobs.length + ' succeeded',
       '',
     ]),
@@ -109,8 +83,9 @@ function exportBatchText(entry) {
 export default function HistoryView({ entries, onView, onNewRun }) {
   const allEntries = [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  const [expandedId,  setExpandedId]  = useState(null);
-  const [expandedOrg, setExpandedOrg] = useState({});
+  const [expandedIds,  setExpandedIds]  = useState(new Set());
+  const [allExpanded,  setAllExpanded]  = useState(false);
+  const [expandedOrg,  setExpandedOrg]  = useState({});
   const [copied, setCopied] = useState(null);
 
   const copy = async (text, id) => {
@@ -121,23 +96,41 @@ export default function HistoryView({ entries, onView, onNewRun }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="hv-header">
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: G900 }}>Run History</div>
-          <div style={{ fontSize: 12, color: G500, marginTop: 2 }}>
+          <div className="hv-header-title">Run History</div>
+          <div className="hv-header-subtitle">
             {allEntries.length + ' bulk run' + (allEntries.length !== 1 ? 's' : '') + ' on record - sorted newest first'}
           </div>
         </div>
-        <Button variant="primary" onClick={onNewRun}>+ New Bulk Run</Button>
+        <div className="hv-header-actions">
+          {allEntries.length > 0 && (
+            <Button
+              variant="outline-primary"
+              onClick={() => {
+                if (allExpanded) {
+                  setExpandedIds(new Set());
+                  setAllExpanded(false);
+                } else {
+                  setExpandedIds(new Set(allEntries.map(e => e.id)));
+                  setAllExpanded(true);
+                }
+              }}
+            >
+              {allExpanded ? 'Collapse All Summary' : 'Expand All Summary'}
+            </Button>
+          )}
+          <Button variant="primary" onClick={onNewRun}>+ New Bulk Run</Button>
+        </div>
       </div>
 
       {/* Empty state */}
       {allEntries.length === 0 && (
-        <div style={{ border: '1px solid ' + BORDER, borderRadius: 4, background: WHITE }}>
-          <div style={{ padding: '3rem', textAlign: 'center', color: G500 }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, color: G700 }}>No runs yet</div>
-            <div style={{ fontSize: 13, marginBottom: 20 }}>Completed bulk runs will appear here automatically.</div>
+        <div className="hv-empty">
+          <div className="hv-empty-inner">
+            <div className="hv-empty-icon">📋</div>
+            <div className="hv-empty-title">No runs yet</div>
+            <div className="hv-empty-desc">Completed bulk runs will appear here automatically.</div>
             <Button variant="primary" onClick={onNewRun}>Start first bulk run</Button>
           </div>
         </div>
@@ -146,48 +139,42 @@ export default function HistoryView({ entries, onView, onNewRun }) {
       {/* Entry list */}
       {allEntries.map(entry => {
         const st        = entry.status;
-        const isOpen    = expandedId === entry.id;
+        const isOpen    = expandedIds.has(entry.id);
         const groups    = orgGroups(entry);
         const succeeded = (entry.jobs || []).filter(j => j.status === 'success').length;
         const failed    = (entry.jobs || []).length - succeeded;
-        const sbg       = statusBg(st);
-        const sc        = statusC(st);
         const slbl      = statusLbl(st);
         const bv        = BADGE_V[st] || 'light';
 
         return (
-          <div key={entry.id} style={{ border: '1px solid ' + BORDER, borderRadius: 4, marginBottom: 12, overflow: 'hidden', background: WHITE }}>
+          <div key={entry.id} className="hv-entry">
             {/* Entry row */}
-            <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: sc, flexShrink: 0 }} />
+            <div className="hv-entry-row">
+              <div className={`hv-entry-dot hv-entry-dot--${st}`} />
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 600, fontSize: 13, color: G900, fontFamily: MONO }}>{'BR-' + entry.id}</span>
-                  <Badge variant={bv} pill style={{ fontSize: 11, lineHeight: 1.5 }}>{slbl}</Badge>
-                  {entry.isDryRun && <Badge variant="info" pill style={{ fontSize: 11, lineHeight: 1.5 }}>DRY RUN</Badge>}
-                  <span style={{ fontSize: 12, color: G500 }}>{modeLabel(entry) + (entry.progName ? '  -  ' + entry.progName : '')}</span>
+              <div className="hv-entry-info">
+                <div className="hv-entry-top">
+                  <span className="hv-entry-id">{'BR-' + (entry.batchId || entry.id.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase()}</span>
+                  <Badge variant={bv} pill className="hv-entry-badge">{slbl}</Badge>
+                  {entry.isDryRun && <Badge variant="info" pill className="hv-entry-badge">DRY RUN</Badge>}
+                  <span className="hv-entry-mode">{modeLabel(entry) + (entry.progName ? '  -  ' + entry.progName : '')}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 14, marginTop: 4, fontSize: 12, color: G500, flexWrap: 'wrap' }}>
+                <div className="hv-entry-meta">
                   <span>{fmtDateShort(entry.createdAt)}</span>
                   <span>{entry.createdBy}</span>
                   <span>{'Run: ' + entry.targetRun}</span>
                   <span>{(entry.orgs?.length || 0) + ' org' + (entry.orgs?.length !== 1 ? 's' : '')}</span>
-                  <span style={{ color: succeeded > 0 ? SUCCESS : G400 }}>{succeeded + ' ok'}</span>
-                  {failed > 0 && <span style={{ color: DANGER }}>{failed + ' failed'}</span>}
+                  <span className={succeeded > 0 ? 'hv-entry-ok--has' : 'hv-entry-ok'}>{succeeded + ' ok'}</span>
+                  {failed > 0 && <span className="hv-entry-fail">{failed + ' failed'}</span>}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  onClick={() => copy(exportBatchText(entry), 'all-' + entry.id)}
-                >
+              <div className="hv-entry-actions">
+                <Button variant="tertiary" size="sm" onClick={() => copy(exportBatchText(entry), 'all-' + entry.id)}>
                   {copied === 'all-' + entry.id ? 'Copied!' : 'Export all'}
                 </Button>
                 <Button variant="outline-primary" size="sm" onClick={() => onView(entry)}>View details</Button>
-                <Button variant="tertiary" size="sm" onClick={() => setExpandedId(isOpen ? null : entry.id)}>
+                <Button variant="tertiary" size="sm" onClick={() => setExpandedIds(prev => { const n = new Set(prev); isOpen ? n.delete(entry.id) : n.add(entry.id); return n; })}>
                   {isOpen ? 'Hide' : 'Summary'}
                 </Button>
               </div>
@@ -195,59 +182,43 @@ export default function HistoryView({ entries, onView, onNewRun }) {
 
             {/* Expandable org summary */}
             {isOpen && (
-              <div style={{ borderTop: '1px solid ' + BORDER }}>
+              <div className="hv-summary">
                 {groups.map(g => {
                   const gKey       = entry.id + '-' + g.org;
                   const gOpen      = expandedOrg[gKey] !== false;
                   const gSucceeded = g.jobs.filter(j => j.status === 'success').length;
                   const gFailed    = g.jobs.length - gSucceeded;
                   return (
-                    <div key={g.org} style={{ borderBottom: '1px solid ' + BORDER }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', background: G50, borderLeft: '4px solid ' + (gFailed > 0 ? DANGER : SUCCESS) }}>
+                    <div key={g.org} className="hv-org">
+                      <div className={`hv-org-header${gFailed > 0 ? ' hv-org-header--fail' : ''}`}>
                         <div
+                          className="hv-org-header-inner"
                           onClick={() => setExpandedOrg(p => ({ ...p, [gKey]: !gOpen }))}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
                         >
-                          <span style={{ fontWeight: 600, fontSize: 13, color: G900 }}>{g.orgName}</span>
-                          <span style={{ fontSize: 11, fontFamily: MONO, color: G500 }}>{g.org}</span>
-                          <span style={{ fontSize: 12, color: gFailed > 0 ? DANGER : SUCCESS }}>
+                          <span className="hv-org-name">{g.orgName}</span>
+                          <span className="hv-org-code">{g.org}</span>
+                          <span className={`hv-org-count${gFailed > 0 ? ' hv-org-count--fail' : ''}`}>
                             {gSucceeded + '/' + g.jobs.length + ' succeeded'}
                           </span>
-                          <span style={{ marginLeft: 'auto', fontSize: 11, color: G400 }}>{gOpen ? '▲' : '▼'}</span>
+                          <span className="hv-org-chevron">{gOpen ? '▲' : '▼'}</span>
                         </div>
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => copy(exportOrgText(entry, g), gKey)}
-                        >
+                        <Button variant="tertiary" size="sm" onClick={() => copy(exportOrgText(entry, g), gKey)}>
                           {copied === gKey ? 'Copied!' : 'Export org'}
                         </Button>
                       </div>
 
                       {gOpen && (
-                        <div style={{ background: WHITE }}>
+                        <div className="hv-courses">
                           {g.jobs.map((j, ji) => (
-                            <div
-                              key={ji}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                padding: '6px 18px 6px 26px',
-                                borderBottom: ji < g.jobs.length - 1 ? ('1px solid ' + G100) : 'none',
-                                background: j.status !== 'success' ? '#fff5f5' : WHITE,
-                              }}
-                            >
-                              <span style={{ color: j.status === 'success' ? SUCCESS : DANGER, fontSize: 13, flexShrink: 0 }}>
-                                {j.status === 'success' ? 'v' : 'x'}
+                            <div key={ji} className={`hv-course${j.status !== 'success' ? ' hv-course--fail' : ''}`}>
+                              <span className={`hv-course-icon${j.status !== 'success' ? ' hv-course-icon--fail' : ''}`}>
+                                {j.status === 'success' ? '✓' : '✗'}
                               </span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 12, color: G700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {j.name || j.targetKey}
-                                </div>
-                                <div style={{ fontSize: 11, color: G400, fontFamily: MONO }}>
-                                  {j.srcKey + ' -> ' + j.targetKey}
-                                </div>
+                              <div className="hv-course-info">
+                                <div className="hv-course-name">{j.name || j.targetKey}</div>
+                                <div className="hv-course-key">{j.srcKey + ' -> ' + j.targetKey}</div>
                               </div>
-                              <span style={{ fontSize: 11, color: G400, flexShrink: 0 }}>{j.elapsed || '-'}</span>
+                              <span className="hv-course-elapsed">{j.elapsed || '-'}</span>
                             </div>
                           ))}
                         </div>
@@ -257,8 +228,8 @@ export default function HistoryView({ entries, onView, onNewRun }) {
                 })}
 
                 {/* Batch export footer */}
-                <div style={{ padding: '10px 18px', background: G50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: G500 }}>
+                <div className="hv-batch-footer">
+                  <span className="hv-batch-footer-text">
                     Export individual org summaries above, or copy the full batch report:
                   </span>
                   <Button

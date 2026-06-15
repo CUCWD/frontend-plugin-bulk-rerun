@@ -259,9 +259,8 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
   font-size: 14px;
   font-weight: 400;
   color: $ss-g900;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
 
   .ss-org-item--selected & { font-weight: 600; color: $ss-brand; }
 }

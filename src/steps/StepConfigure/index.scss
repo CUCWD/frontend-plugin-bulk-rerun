@@ -203,8 +203,9 @@ $sc-mono:        "SFMono-Regular", "Courier New", monospace;
   font-size: 14px;
 }
 
-.sc-runs-ok  { color: $sc-success; font-weight: 600; font-size: 14px; }
-.sc-runs-err { color: $sc-danger;  font-weight: 600; font-size: 14px; }
+.sc-runs-ok   { color: $sc-success;  font-weight: 600; font-size: 14px; }
+.sc-runs-warn { color: $sc-warning;  font-weight: 600; font-size: 14px; }
+.sc-runs-err  { color: $sc-danger;   font-weight: 600; font-size: 14px; }
 
 // ── Per-org accordion ─────────────────────────────────────────────────────────
 .sc-org-group { border-bottom: 1px solid $sc-border; }
@@ -323,10 +324,10 @@ $sc-mono:        "SFMono-Regular", "Courier New", monospace;
 
   // Source columns (green tint, monospace data)
   &--src      { background: #f4fbf6; color: $sc-g700; min-width: 160px; }
-  &--src-mono { background: #f4fbf6; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: nowrap; }
+  &--src-mono { background: #f4fbf6; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: normal; word-break: break-all; }
 
   // Target columns (blue tint, monospace)
-  &--tgt     { background: $sc-brand-xlt; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: nowrap; }
+  &--tgt     { background: $sc-brand-xlt; font-family: $sc-mono; font-size: 15px; color: $sc-g700; white-space: normal; word-break: break-all; }
   &--tgt-run { background: $sc-brand-xlt; font-size: 15px; padding: 0; overflow: visible; position: relative; }
 
   // Conflict state overrides (applied alongside --src / --tgt / --indicator)
@@ -381,7 +382,8 @@ $sc-mono:        "SFMono-Regular", "Courier New", monospace;
 }
 
 .sc-table-footer-note     { color: $sc-g500; }
-.sc-table-footer-conflict { color: $sc-danger; font-weight: 600; }
+.sc-table-footer-warn     { color: $sc-warning; font-weight: 600; }
+.sc-table-footer-conflict { color: $sc-danger;  font-weight: 600; }
 
 // ── Bottom action bar ─────────────────────────────────────────────────────────
 .sc-action-bar {
@@ -391,6 +393,7 @@ $sc-mono:        "SFMono-Regular", "Courier New", monospace;
 }
 
 .sc-action-bar-right { display: flex; gap: 10px; align-items: center; }
+.sc-warn-msg         { font-size: 15px; color: $sc-warning; }
 .sc-conflict-msg     { font-size: 15px; color: $sc-danger; }
 
 .sc-checking-msg {
@@ -438,16 +441,17 @@ $sc-mono:        "SFMono-Regular", "Courier New", monospace;
   }
 
   .pgn__data-table thead {
-    // Indicator: fixed narrow; Course name: explicitly wider at 30%;
-    // the 6 data cols share equal 11% each (6 × 11% + 30% = 96%).
-    th:nth-child(1) { width: 36px; }
-    th:nth-child(2) { width: 30%; }
-    th:nth-child(3),
-    th:nth-child(4),
-    th:nth-child(5),
-    th:nth-child(6),
-    th:nth-child(7),
-    th:nth-child(8) { width: 11%; }
+    // Column widths mirror StepReview's <colgroup> proportions.
+    // Target org gets more room (14%) since org codes can be long;
+    // src/tgt run get less (8%) since run IDs are short.
+    th:nth-child(1) { width: 48px; }
+    th:nth-child(2) { width: 34%; }
+    th:nth-child(3) { width: 9%;  }
+    th:nth-child(4) { width: 12%; }
+    th:nth-child(5) { width: 8%;  }
+    th:nth-child(6) { width: 18%; }
+    th:nth-child(7) { width: 12%; }
+    th:nth-child(8) { width: 8%;  }
 
     th:nth-child(2),
     th:nth-child(3),

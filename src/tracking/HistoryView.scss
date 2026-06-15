@@ -1,0 +1,160 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$hv-brand:   #006daa;
+$hv-success: #178253;
+$hv-danger:  #c32d3a;
+$hv-warning: #856404;
+$hv-g50:     #f8f9fa;
+$hv-g100:    #f0f0f0;
+$hv-g400:    #9e9e9e;
+$hv-g500:    #6c757d;
+$hv-g700:    #454545;
+$hv-g900:    #1f2937;
+$hv-border:  #dee2e6;
+$hv-white:   #fff;
+$hv-mono:    "SFMono-Regular", "Courier New", monospace;
+
+// ── Header ────────────────────────────────────────────────────────────────────
+.hv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.hv-header-title    { font-size: 16px; font-weight: 600; color: $hv-g900; }
+.hv-header-subtitle { font-size: 12px; color: $hv-g500; margin-top: 2px; }
+.hv-header-actions  { display: flex; gap: 8px; align-items: center; }
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+.hv-empty {
+  border: 1px solid $hv-border;
+  border-radius: 4px;
+  background: $hv-white;
+}
+
+.hv-empty-inner { padding: 3rem; text-align: center; color: $hv-g500; }
+.hv-empty-icon  { font-size: 32px; margin-bottom: 12px; }
+.hv-empty-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; color: $hv-g700; }
+.hv-empty-desc  { font-size: 13px; margin-bottom: 20px; }
+
+// ── Entry card ────────────────────────────────────────────────────────────────
+.hv-entry {
+  border: 1px solid $hv-border;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  background: $hv-white;
+}
+
+.hv-entry-row {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.hv-entry-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: $hv-g500;
+
+  &--succeeded { background: $hv-success; }
+  &--partial   { background: $hv-warning; }
+  &--failed    { background: $hv-danger;  }
+  &--running   { background: $hv-brand;   }
+}
+
+.hv-entry-info { flex: 1; min-width: 0; }
+
+.hv-entry-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hv-entry-id   { font-weight: 600; font-size: 13px; color: $hv-g900; font-family: $hv-mono; }
+.hv-entry-badge { font-size: 11px; line-height: 1.5; }
+.hv-entry-mode  { font-size: 12px; color: $hv-g500; }
+
+.hv-entry-meta {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: $hv-g500;
+  flex-wrap: wrap;
+}
+
+.hv-entry-ok        { color: $hv-g400; }
+.hv-entry-ok--has   { color: $hv-success; }
+.hv-entry-fail      { color: $hv-danger; }
+
+.hv-entry-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+
+// ── Org summary ───────────────────────────────────────────────────────────────
+.hv-summary { border-top: 1px solid $hv-border; }
+
+.hv-org { border-bottom: 1px solid $hv-border; }
+
+.hv-org-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  background: $hv-g50;
+  border-left: 4px solid $hv-success;
+
+  &--fail { border-left-color: $hv-danger; }
+}
+
+.hv-org-header-inner { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; }
+.hv-org-name         { font-weight: 600; font-size: 13px; color: $hv-g900; }
+.hv-org-code         { font-size: 11px; font-family: $hv-mono; color: $hv-g500; }
+.hv-org-count        { font-size: 12px; color: $hv-success; }
+.hv-org-count--fail  { color: $hv-danger; }
+.hv-org-chevron      { margin-left: auto; font-size: 11px; color: $hv-g400; }
+
+// ── Course rows ───────────────────────────────────────────────────────────────
+.hv-courses { background: $hv-white; }
+
+.hv-course {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 26px;
+
+  &:not(:last-child) { border-bottom: 1px solid $hv-g100; }
+  &--fail            { background: #fff5f5; }
+}
+
+.hv-course-icon      { font-size: 13px; flex-shrink: 0; color: $hv-success; }
+.hv-course-icon--fail { color: $hv-danger; }
+
+.hv-course-info { flex: 1; min-width: 0; }
+
+.hv-course-name {
+  font-size: 12px;
+  color: $hv-g700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hv-course-key     { font-size: 11px; color: $hv-g400; font-family: $hv-mono; }
+.hv-course-elapsed { font-size: 11px; color: $hv-g400; flex-shrink: 0; }
+
+// ── Batch export footer ───────────────────────────────────────────────────────
+.hv-batch-footer {
+  padding: 10px 18px;
+  background: $hv-g50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hv-batch-footer-text { font-size: 12px; color: $hv-g500; }

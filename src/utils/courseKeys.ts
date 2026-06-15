@@ -60,3 +60,9 @@ export function detectConflict(
   if (row.org === row.srcOrg && row.num === row.srcNum && row.run === row.srcRun)  return 'self';
   return null;
 }
+
+// 'exists' is a soft warning — the backend skips course creation and re-applies
+// settings to the already-present course. 'dup' and 'self' are structural errors
+// that cannot succeed regardless, so they must be resolved before submission.
+export const isHardConflict = (ct: string | null): boolean =>
+  ct === 'dup' || ct === 'self';

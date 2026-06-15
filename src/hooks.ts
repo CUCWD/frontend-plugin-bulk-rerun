@@ -1,11 +1,14 @@
 // TanStack Query wrappers for the Studio bulk-rerun REST API.
-// useValidateCourseKeys — POST /validate/       checks which target keys already exist on the platform.
-// useCreateBatch        — POST /batches/        submits a new job to the backend.
-// useBatch              — GET  /batches/:id/    polls every 2 s; stops when the job reaches a terminal status.
-// useOrgs               — GET  /organizations   fetches org short-names from Studio.
+// useValidateCourseKeys — POST /validate/            checks which target keys already exist on the platform.
+// useCreateBatch        — POST /batches/             submits a new job to the backend.
+// useCancelBatch        — POST /batches/:id/cancel/  cancels a pending/running batch.
+// useBatch              — GET  /batches/:id/         polls every 2 s; stops when the job reaches a terminal status.
+// useRunningBatches     — GET  /batches/?status=...  fetches the caller's in-progress batches; used to recover
+//                                                    active jobs after a page refresh or on a different device.
+// useOrgs               — GET  /organizations        fetches org short-names from Studio.
 // usePrograms           — GET  discovery /api/v1/programs/?status=active  fetches active programs.
-// useCourses            — GET  /courses         fetches up to 500 DEMO-run live courses.
-// useJobLogs            — GET  /batches/:id/logs/ fetches log lines for a running job.
+// useCourses            — GET  /courses              fetches up to 500 DEMO-run live courses.
+// useJobLogs            — GET  /batches/:id/logs/    fetches log lines for a running job.
 import { getConfig, camelCaseObject } from '@edx/frontend-platform';
 import { getAuthenticatedHttpClient } from '@edx/frontend-platform/auth';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -46,6 +49,29 @@ export const useCreateBatch = () => useMutation({
       .post(batchesUrl(), payload);
     return data;
   },
+});
+
+export const useCancelBatch = () => useMutation({
+  mutationFn: async (batchId: string) => {
+    const { data } = await getAuthenticatedHttpClient()
+      .post(`${batchUrl(batchId)}cancel/`);
+    return data;
+  },
+});
+
+// Fetch the current user's batches filtered by status.
+// Fetched once on mount (no polling) — used by StepProgress to restore in-flight
+// jobs after a page refresh or when navigating from a different device/tab.
+export const useRunningBatches = (statusFilter = 'running,pending') => useQuery({
+  queryKey:  ['bulk-rerun-batches-running', statusFilter],
+  queryFn:   async () => {
+    const { data } = await getAuthenticatedHttpClient()
+      .get(`${batchesUrl()}?status=${encodeURIComponent(statusFilter)}`);
+    return data as any[];
+  },
+  staleTime: Infinity,
+  refetchOnWindowFocus: false,
+  refetchInterval: false,
 });
 
 export const useBatch = (batchId: string | null) => useQuery({
@@ -149,8 +175,9 @@ export const useJobLogs = (jobId: string | null) => useQuery({
     return data;
   },
   enabled: !!jobId,
-  refetchInterval: (data: any) => {
-    if (['succeeded', 'failed'].includes(data?.job_status)) return false;
+  // TanStack Query v5: refetchInterval receives the query object, not data directly.
+  refetchInterval: (query: any) => {
+    if (['succeeded', 'failed'].includes(query?.state?.data?.job_status)) return false;
     return 2000;
   },
 });

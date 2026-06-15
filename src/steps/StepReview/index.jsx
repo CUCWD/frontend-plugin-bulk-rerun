@@ -2,12 +2,12 @@
 // Conflict detection runs client-side against the existsSet returned by the validate API.
 // Mode toggle: 'preview' dispatches a dry-run job; 'execute' creates real course reruns.
 // The Submit button is disabled while any conflict row is unresolved.
-import { useState } from 'react';
-import { Button, Alert, Badge, Spinner } from '@openedx/paragon';
+import { useState, useMemo } from 'react';
+import { Button, Alert, Badge, DataTable, Spinner } from '@openedx/paragon';
 
 import { useCreateBatch } from '../../hooks';
 import { buildBatchPayload } from '../../utils/batchPayload';
-import { makeKey, detectConflict } from '../../utils/courseKeys';
+import { makeKey, detectConflict, isHardConflict } from '../../utils/courseKeys';
 import OrgRoleSummary from './OrgRoleSummary';
 import './index.scss';
 
@@ -17,6 +17,8 @@ const CONFLICT_MSG_MAP = {
   self:   'Target key is identical to source',
   org:    'Organization not found in platform',
 };
+
+const conflictCls = ct => (ct === 'exists' ? ' sr-cell--exists' : ct ? ' sr-cell--conflict' : '');
 
 export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatchFailed }) {
   const {
@@ -32,13 +34,14 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
 
   const createBatch = useCreateBatch();
 
-  const [mode,        setMode]        = useState(dryRunEnabled ? 'preview' : 'execute');
+  const [mode,        setMode]        = useState('execute');
   const [busy,        setBusy]        = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
   const conflicts = rows.map((r, i) => detectConflict(r, rows, i, existsSetSafe));
-  const nConf = conflicts.filter(Boolean).length;
-  const canGo = nConf === 0 && !busy;
+  const nHardConf = conflicts.filter(isHardConflict).length;
+  const nExistsConf = conflicts.filter(ct => ct === 'exists').length;
+  const canGo = nHardConf === 0 && !busy;
 
   const orgs = [...new Set(rows.map(r => r.org))].sort((a, b) => a.localeCompare(b));
   const [openOrgs, setOpenOrgs] = useState(() => Object.fromEntries(orgs.map(o => [o, true])));
@@ -60,26 +63,119 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
 
   const execOptions = [
     {
-      v: 'preview', icon: '🔍',
-      title: 'Preview plan (dry-run)',
-      desc: 'Validates all steps without creating or modifying any data',
-    },
-    {
       v: 'execute', icon: '▶',
       title: 'Execute reruns',
       desc: 'Creates course runs, applies settings' + (courseDiscoveryEnabled ? ', syncs Discovery, links programs' : ''),
     },
+    {
+      v: 'preview', icon: '🔍',
+      title: 'Preview plan (dry-run)',
+      desc: 'Validates all steps without creating or modifying any data',
+    },
   ];
+
+  // Column definitions are stable — cell renderers only access row.original.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reviewColumns = useMemo(() => [
+    {
+      id: 'indicator',
+      Header: '',
+      accessor: 'conflictType',
+      disableSortBy: true,
+      Cell: ({ row }) => {
+        const ct = row.original.conflictType;
+        return (
+          <div className={`sr-cell sr-cell--indicator${conflictCls(ct)}`}>
+            {isHardConflict(ct)
+              ? <span className="sr-conflict-icon">🚫</span>
+              : ct === 'exists'
+                ? <span className="sr-conflict-icon">⚠️</span>
+                : <span className="sr-ok-check">✓</span>}
+          </div>
+        );
+      },
+    },
+    {
+      Header: 'Course Name',
+      accessor: 'name',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--src${conflictCls(row.original.conflictType)}`}>
+          {row.original.name}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src Org',
+      accessor: 'srcOrg',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--src-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.srcOrg}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src Course #',
+      accessor: 'srcNum',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--src-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.srcNum}
+        </div>
+      ),
+    },
+    {
+      Header: 'Src Run',
+      accessor: 'srcRun',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--src-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.srcRun}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target Org',
+      accessor: 'org',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--tgt-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.org}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target Course #',
+      accessor: 'num',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--tgt-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.num}
+        </div>
+      ),
+    },
+    {
+      Header: 'Target Run',
+      accessor: 'run',
+      disableSortBy: true,
+      Cell: ({ row }) => (
+        <div className={`sr-cell sr-cell--tgt-mono${conflictCls(row.original.conflictType)}`}>
+          {row.original.run}
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <div>
-      {nConf > 0
+      {nHardConf > 0
         ? (
           <Alert variant="danger" className="mb-3 py-2">
-            <strong className="sr-alert-title">{nConf + ' conflict' + (nConf !== 1 ? 's' : '') + ' - submission blocked'}</strong>
+            <strong className="sr-alert-title">{nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '') + ' - submission blocked'}</strong>
             <ul className="sr-conflict-list">
               {rows.map((r, i) => (
-                conflicts[i]
+                isHardConflict(conflicts[i])
                   ? (
                     <li key={r.id}>
                       <code>{makeKey(r.org, r.num, r.run)}</code>
@@ -93,11 +189,11 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
           </Alert>
         )
         : (
-          <Alert variant="success" className="mb-3 py-2">
-            <strong className="sr-alert-title--sm">All course keys verified - no conflicts detected</strong>
-            Every target key checked against the platform. Ready to submit.
-          </Alert>
-        )}
+            <Alert variant="success" className="mb-3 py-2">
+              <strong className="sr-alert-title--sm">All course keys verified - no conflicts detected</strong>
+              Every target key checked against the platform. Ready to submit.
+            </Alert>
+          )}
 
       {!courseDiscoveryEnabled && (
         <Alert variant="warning" className="mb-3 py-2">
@@ -165,11 +261,11 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
               ['Team members',       rosterFilled.length ? (rosterFilled.length + ' from CAR') : 'None'],
               ['Remove provisioner', removeOp ? 'Yes' : 'No'],
               ['Lesson gating',      gatingLabel],
-              ['Key conflicts',      nConf > 0 ? (nConf + ' conflict' + (nConf !== 1 ? 's' : '')) : 'None'],
+              ['Key conflicts',      nHardConf > 0 ? (nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '')) : nExistsConf > 0 ? (nExistsConf + ' existing') : 'None'],
             ].map(([k, v]) => (
               <div key={k} className="sr-settings-row">
                 <span className="sr-settings-key">{k}</span>
-                <span className={`sr-settings-val${k === 'Key conflicts' ? (nConf > 0 ? ' sr-settings-val--danger' : ' sr-settings-val--ok') : ''}`}>{v}</span>
+                <span className={`sr-settings-val${k === 'Key conflicts' ? (nHardConf > 0 ? ' sr-settings-val--danger' : nExistsConf > 0 ? ' sr-settings-val--warn' : ' sr-settings-val--ok') : ''}`}>{v}</span>
               </div>
             ))}
           </div>
@@ -189,9 +285,10 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
         </div>
 
         {orgs.map(orgCode => {
-          const orgRows = rows.map((r, i) => ({ ...r, i })).filter(r => r.org === orgCode);
-          const orgErr  = orgRows.some(r => !!conflicts[r.i]);
-          const isOpen  = openOrgs[orgCode] !== false;
+          const orgRows    = rows.map((r, i) => ({ ...r, i })).filter(r => r.org === orgCode);
+          const orgErr     = orgRows.some(r => isHardConflict(conflicts[r.i]));
+          const isOpen     = openOrgs[orgCode] !== false;
+          const tableData  = orgRows.map(r => ({ ...r, conflictType: conflicts[r.i] }));
 
           return (
             <div key={orgCode} className="sr-org-section">
@@ -212,42 +309,14 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
               {isOpen && (
                 <>
                   <div className="sr-runs-table-wrap">
-                    <table className="sr-runs-table">
-                      <thead>
-                        <tr>
-                          <th className="sr-th-indicator" />
-                          <th className="sr-th-src">Course Name</th>
-                          <th className="sr-th-src">Src Org</th>
-                          <th className="sr-th-src">Src Course #</th>
-                          <th className="sr-th-src">Src Run</th>
-                          <th className="sr-th-tgt">Target Org</th>
-                          <th className="sr-th-tgt">Target Course #</th>
-                          <th className="sr-th-tgt">Target Run</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {orgRows.map(r => {
-                          const ct = conflicts[r.i];
-                          const rowCls = ct === 'exists' ? ' sr-row--exists' : ct ? ' sr-row--dup' : ' sr-row--ok';
-                          return (
-                            <tr key={r.id} className={`sr-row${rowCls}`}>
-                              <td className="sr-td-indicator">
-                                {ct
-                                  ? <span className="sr-conflict-icon">{ct === 'exists' ? '🚫' : '⚠️'}</span>
-                                  : <span className="sr-ok-check">✓</span>}
-                              </td>
-                              <td className="sr-td-src">{r.name}</td>
-                              <td className="sr-td-src-mono">{r.srcOrg}</td>
-                              <td className="sr-td-src-mono">{r.srcNum}</td>
-                              <td className="sr-td-src-mono">{r.srcRun}</td>
-                              <td className="sr-td-tgt-mono">{r.org}</td>
-                              <td className="sr-td-tgt-mono">{r.num}</td>
-                              <td className="sr-td-tgt-mono">{r.run}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <DataTable
+                      columns={reviewColumns}
+                      data={tableData}
+                      itemCount={tableData.length}
+                      initialTableOptions={{ getRowId: row => row.id }}
+                    >
+                      <DataTable.Table isStriped={false} />
+                    </DataTable>
                   </div>
                   <OrgRoleSummary orgCode={orgCode} orgRosters={orgRosters} />
                 </>
@@ -269,7 +338,7 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
       <div className="sr-action-bar">
         <Button variant="outline-primary" onClick={onBack} disabled={busy}>Back to configure</Button>
         <div className="sr-action-right">
-          {nConf > 0 && (
+          {nHardConf > 0 && (
             <Button variant="tertiary" onClick={onBack} className="sr-fix-btn">
               Fix conflicts first
             </Button>

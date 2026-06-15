@@ -1,6 +1,7 @@
 // ── Design tokens ─────────────────────────────────────────────────────────────
 $sp-brand:   #006daa;
 $sp-danger:  #c32d3a;
+$sp-warning: #856404;
 $sp-g50:     #f8f9fa;
 $sp-g500:    #6c757d;
 $sp-g700:    #454545;
@@ -89,7 +90,8 @@ $sp-mono:    "SFMono-Regular", "Courier New", monospace;
   &-user { font-weight: 500; color: $sp-g700; }
 }
 .sp-job-spacer { flex: 1; }
-.sp-dismiss-btn { color: $sp-danger !important; }
+.sp-stop-btn    { color: $sp-warning !important; }
+.sp-dismiss-btn { color: $sp-danger  !important; }
 
 .sp-job-body {
   border: 1px solid $sp-border;
