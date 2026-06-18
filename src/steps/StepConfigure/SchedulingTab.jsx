@@ -1,79 +1,81 @@
-// Draft extraction of the Scheduling tab from StepConfigure.
-// Validates dates with validateRunId and drives form state via hookstate.
-// NOT currently imported — the active scheduling UI is inline in StepConfigure/index.jsx.
-import React from 'react';
-import { Form, Alert } from '@openedx/paragon';
-
-import { useBulkRerunState } from '../../state';
-import { validateRunId } from '../../utils/courseKeys';
-import { validateSched } from '../../utils/scheduling';
+// Scheduling tab — course and enrollment date pickers, course pacing, and the
+// shared target run identifier field with inline format validation indicator.
+// Rendered inside StepConfigure when the 'scheduling' sub-tab is active.
+// Props: sched, setSched, runId, setRunId, schedErrs, schedOkUI, runIdV
+//        (state and derived values owned by StepConfigure).
+import { Alert, Form } from '@openedx/paragon';
+import './SchedulingTab.scss';
 
 const DATE_FIELDS = [
-  { key: 'start',       label: 'Course start date' },
-  { key: 'end',         label: 'Course end date' },
-  { key: 'enrollStart', label: 'Enrollment start date' },
-  { key: 'enrollEnd',   label: 'Enrollment end date' },
+  ['Course start date',   'start'],
+  ['Course end date',     'end'],
+  ['Enrollment start',    'enrollStart'],
+  ['Enrollment end',      'enrollEnd'],
 ];
 
-const SchedulingTab = () => {
-  const { sched, setSched, runId, setRunId } = useBulkRerunState();
-  const errs = validateSched(sched);
-  const runIdV = validateRunId(runId);
+function Lbl({ children }) {
+  return <Form.Label className="sc-lbl">{children}</Form.Label>;
+}
 
-  return (
-    <div>
-      <div className="row mb-3">
-        {DATE_FIELDS.map(({ key, label }) => (
-          <div key={key} className="col-md-6 mb-3">
-            <Form.Group>
-              <Form.Label>{label}</Form.Label>
-              <Form.Control
-                type="date"
-                value={sched[key] || ''}
-                isInvalid={!!errs[key]}
-                onChange={e => setSched({ [key]: e.target.value })}
-              />
-              {errs[key] && <Form.Control.Feedback type="invalid">{errs[key]}</Form.Control.Feedback>}
-            </Form.Group>
-          </div>
-        ))}
-        <div className="col-md-6 mb-3">
-          <Form.Group>
-            <Form.Label>Course pacing</Form.Label>
-            <Form.Control
-              as="select"
-              value={sched.pacing}
-              onChange={e => setSched({ pacing: e.target.value })}
-            >
-              <option value="instructor">Instructor-paced</option>
-              <option value="self">Self-paced</option>
-            </Form.Control>
-          </Form.Group>
+const SchedulingTab = ({ sched, setSched, runId, setRunId, schedErrs, schedOkUI, runIdV }) => (
+  <div>
+    <div className="sc-grid-2">
+      {DATE_FIELDS.map(([lbl, k]) => (
+        <div key={k}>
+          <Lbl>{lbl}</Lbl>
+          <Form.Control
+            type="date"
+            value={sched[k]}
+            isInvalid={!!schedErrs[k]}
+            onChange={e => setSched(p => ({ ...p, [k]: e.target.value }))}
+          />
+          {schedErrs[k] && <div className="sc-field-err">{schedErrs[k]}</div>}
         </div>
-        <div className="col-md-6 mb-3">
-          <Form.Group>
-            <Form.Label>Target run identifier</Form.Label>
-            <Form.Control
-              className="font-monospace"
-              value={runId}
-              isInvalid={runId.length > 0 && !runIdV.ok}
-              placeholder="e.g. 2026_2027"
-              onChange={e => setRunId(e.target.value)}
-            />
-            {runId.length > 0 && !runIdV.ok && (
-              <Form.Control.Feedback type="invalid">{runIdV.msg}</Form.Control.Feedback>
-            )}
-            {runId.length > 0 && runIdV.ok && (
-              <small className="text-muted">{runIdV.msg}</small>
-            )}
-          </Form.Group>
-        </div>
+      ))}
+      <div>
+        <Lbl>Course pacing</Lbl>
+        <Form.Control as="select" value={sched.pacing} onChange={e => setSched(p => ({ ...p, pacing: e.target.value }))}>
+          <option value="instructor">Instructor-paced</option>
+          <option value="self">Self-paced</option>
+        </Form.Control>
       </div>
-      {Object.keys(errs).length > 0 && (
-        <Alert variant="warning">Fix date errors before proceeding.</Alert>
-      )}
+      <div>
+        <Lbl>Target run identifier</Lbl>
+        <div className="sc-run-field">
+          <Form.Control
+            value={runId}
+            className="font-monospace"
+            isInvalid={!runIdV.ok && runId.length > 0}
+            onChange={e => setRunId(e.target.value)}
+            placeholder="e.g. 2026_2027"
+            style={runId.length > 0 ? { paddingRight: 30 } : undefined}
+          />
+          {runId.length > 0 && (
+            <span className={`sc-run-indicator sc-run-indicator--${runIdV.ok ? 'ok' : 'err'}`}>
+              {runIdV.ok ? '✓' : '✗'}
+            </span>
+          )}
+        </div>
+        {runId.length > 0 && (
+          <div className={`sc-run-msg sc-run-msg--${runIdV.ok ? 'ok' : 'err'}`}>
+            {runIdV.msg}
+          </div>
+        )}
+      </div>
     </div>
-  );
-};
+    {!schedOkUI && (
+      <Alert variant="warning" className="mb-0 mt-2 py-2">
+        <strong className="sc-alert-title">Fix scheduling dates before continuing</strong>
+        The date configuration has issues that must be resolved.
+      </Alert>
+    )}
+    {schedOkUI && runIdV.ok && (
+      <Alert variant="info" className="mb-0 mt-2 py-2">
+        <strong className="sc-alert-title">Run identifier applied to all course runs</strong>
+        Changing this updates every row. Individual overrides available in the table below.
+      </Alert>
+    )}
+  </div>
+);
 
 export default SchedulingTab;

@@ -1,69 +1,70 @@
-// Draft extraction of the Certificates tab from StepConfigure.
-// Pulls certificate settings from hookstate directly. NOT currently imported —
-// the active implementation is inline in StepConfigure/index.jsx.
-import React from 'react';
-import { Form, CheckboxControl } from '@openedx/paragon';
+// Certificates tab — course mode, certificate display behaviour, and three
+// toggle settings (create, student-generated, dashboard visibility).
+// Rendered inside StepConfigure when the 'certs' sub-tab is active.
+// Props: certs, setCerts (local state owned by StepConfigure).
+import { Alert, Form } from '@openedx/paragon';
+import './CertificatesTab.scss';
 
-import { useBulkRerunState } from '../../state';
+const CERT_DISPLAY_OPTS = [
+  { value: 'early_no_info',  label: 'Immediately upon passing (early_no_info)' },
+  { value: 'early_with_info', label: 'Immediately with course info' },
+  { value: 'end',            label: 'After course end date' },
+];
 
-const CertificatesTab = () => {
-  const { certs, setCerts } = useBulkRerunState();
-
+function Lbl({ children, hint }) {
   return (
-    <div>
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <Form.Group>
-            <Form.Label>Certificate mode</Form.Label>
-            <Form.Control
-              as="select"
-              value={certs.mode}
-              onChange={e => setCerts({ mode: e.target.value })}
-            >
-              <option value="honor">Honor</option>
-              <option value="verified">Verified</option>
-              <option value="audit">Audit</option>
-            </Form.Control>
-          </Form.Group>
-        </div>
-        <div className="col-md-6 mb-3">
-          <Form.Group>
-            <Form.Label>Certificate display behavior</Form.Label>
-            <Form.Control
-              as="select"
-              value={certs.display}
-              onChange={e => setCerts({ display: e.target.value })}
-            >
-              <option value="early_no_info">Early — no info</option>
-              <option value="early_with_info">Early — with info</option>
-              <option value="end_with_date">End of course</option>
-            </Form.Control>
-          </Form.Group>
-        </div>
+    <Form.Label className="sc-lbl">
+      {children}
+      {hint && <span className="sc-lbl-hint">{hint}</span>}
+    </Form.Label>
+  );
+}
+
+function Toggle({ id, checked, onChange, label, hint }) {
+  return (
+    <div className="sc-toggle">
+      <div className="sc-toggle__text">
+        <div className="sc-toggle__label">{label}</div>
+        {hint && <span className="sc-toggle__hint">{hint}</span>}
       </div>
-      <div className="mb-2">
-        <CheckboxControl
-          checked={certs.create}
-          onChange={e => setCerts({ create: e.target.checked })}
-          label="Create certificate configuration"
-        />
-      </div>
-      <div className="mb-2">
-        <CheckboxControl
-          checked={certs.studentGenCert}
-          onChange={e => setCerts({ studentGenCert: e.target.checked })}
-          label="Enable student-generated certificates"
-        />
-      </div>
-      <div>
-        <CheckboxControl
-          checked={certs.certOnDashboard}
-          onChange={e => setCerts({ certOnDashboard: e.target.checked })}
-          label="Show certificate on learner dashboard"
-        />
-      </div>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        className="sc-toggle__switch"
+      />
     </div>
   );
-};
+}
+
+const CertificatesTab = ({ certs, setCerts }) => (
+  <div>
+    <Alert variant="info" className="mb-3 py-2">
+      <strong className="sc-alert-title">Global certificate template</strong>
+      A single branded certificate template is applied across all organizations.
+    </Alert>
+    <div className="sc-grid-2">
+      <div>
+        <Lbl hint="Type of certificate issued">Course mode</Lbl>
+        <Form.Control as="select" value={certs.mode} onChange={e => setCerts(p => ({ ...p, mode: e.target.value }))}>
+          <option value="honor">Honor</option>
+          <option value="verified">Verified</option>
+        </Form.Control>
+      </div>
+      <div>
+        <Lbl hint="When certificate is available">Certificate display behavior</Lbl>
+        <Form.Control as="select" value={certs.display} onChange={e => setCerts(p => ({ ...p, display: e.target.value }))}>
+          {CERT_DISPLAY_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </Form.Control>
+      </div>
+    </div>
+    <Toggle id="cc" checked={certs.create}         onChange={e => setCerts(p => ({ ...p, create: e.target.checked }))}         label="Create and activate certificate"          hint="Creates the honor certificate and marks it active in Studio" />
+    <Toggle id="sg" checked={certs.studentGenCert}  onChange={e => setCerts(p => ({ ...p, studentGenCert: e.target.checked }))}  label="Enable student-generated certificates"    hint="Students can generate certificates from the Instructor tab" />
+    <Toggle id="db" checked={certs.certOnDashboard} onChange={e => setCerts(p => ({ ...p, certOnDashboard: e.target.checked }))} label="Display certificate on learner dashboard" hint="Certificate link visible immediately upon earning" />
+  </div>
+);
 
 export default CertificatesTab;

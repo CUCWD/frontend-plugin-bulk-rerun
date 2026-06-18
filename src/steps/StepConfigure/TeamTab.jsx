@@ -1,76 +1,80 @@
-// Draft extraction of the Team & Access tab from StepConfigure.
-// Uses Paragon Add/Delete icon buttons for roster management.
-// NOT currently imported — the active team UI is inline in StepConfigure/index.jsx.
-import React from 'react';
-import {
-  Form, Button, Icon, IconButton, CheckboxControl,
-} from '@openedx/paragon';
-import { Add, Delete } from '@openedx/paragon/icons';
+// Team & Access tab — per-org Course Assignment Roster (CAR) panel rendered
+// inside each org accordion group. Shows a DataTable of team members with email,
+// Studio role, discussion role, and account-status columns, plus an Add button
+// and the Remove provisioner toggle.
+// Rendered inside StepConfigure when the 'team' org sub-tab is active.
+// Props: orgCode, orgName, orgRoster, emailStatus, teamColumns, addOrgMember,
+//        removeOp, setRemoveOp, filledMembers.
+import { Alert, Button, DataTable } from '@openedx/paragon';
+import './TeamTab.scss';
 
-import { useBulkRerunState } from '../../state';
-
-const STUDIO_ROLES = ['staff', 'instructor', 'beta_testers', 'data_researcher', 'finance_admin', 'sales_admin'];
-const DISCUSSION_ROLES = ['', 'Moderator', 'Community TA', 'Administrator'];
-
-const TeamTab = () => {
-  const { teamMembers, setTeamMembers, removeProvisioner, setRemoveProvisioner } = useBulkRerunState();
-
-  const add = () => setTeamMembers([...teamMembers, { email: '', studioRole: 'staff', discussionRole: '' }]);
-  const remove = i => setTeamMembers(teamMembers.filter((_, idx) => idx !== i));
-  const update = (i, field, value) => setTeamMembers(
-    teamMembers.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)),
-  );
-
+function Toggle({ id, checked, onChange, label, hint }) {
   return (
-    <div>
-      <div className="mb-4">
-        <CheckboxControl
-          checked={removeProvisioner}
-          onChange={e => setRemoveProvisioner(e.target.checked)}
-          label="Remove provisioner account after course creation"
-        />
+    <div className="sc-toggle">
+      <div className="sc-toggle__text">
+        <div className="sc-toggle__label">{label}</div>
+        {hint && <span className="sc-toggle__hint">{hint}</span>}
       </div>
-      <p className="small text-muted mb-3">Add team members who will receive staff access on all created courses.</p>
-      {teamMembers.map((m, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <div key={i} className="d-flex gap-3 align-items-end mb-3">
-          <Form.Group className="flex-grow-1 mb-0">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={m.email}
-              onChange={e => update(i, 'email', e.target.value)}
-              placeholder="user@example.com"
-            />
-          </Form.Group>
-          <Form.Group className="mb-0" style={{ minWidth: 140 }}>
-            <Form.Label>Studio role</Form.Label>
-            <Form.Control
-              as="select"
-              value={m.studioRole}
-              onChange={e => update(i, 'studioRole', e.target.value)}
-            >
-              {STUDIO_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-            </Form.Control>
-          </Form.Group>
-          <Form.Group className="mb-0" style={{ minWidth: 140 }}>
-            <Form.Label>Discussion role</Form.Label>
-            <Form.Control
-              as="select"
-              value={m.discussionRole}
-              onChange={e => update(i, 'discussionRole', e.target.value)}
-            >
-              {DISCUSSION_ROLES.map(r => <option key={r} value={r}>{r || '(none)'}</option>)}
-            </Form.Control>
-          </Form.Group>
-          <IconButton src={Delete} iconAs={Icon} onClick={() => remove(i)} variant="tertiary" />
-        </div>
-      ))}
-      <Button variant="outline-primary" size="sm" iconBefore={Add} onClick={add}>
-        Add team member
-      </Button>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        className="sc-toggle__switch"
+      />
     </div>
   );
-};
+}
+
+const TeamTab = ({
+  orgCode, orgName,
+  orgRoster, emailStatus,
+  teamColumns,
+  addOrgMember,
+  removeOp, setRemoveOp,
+  filledMembers,
+}) => (
+  <div className="sc-team-content">
+    <Alert variant="info" className="mb-3 py-2">
+      <strong className="sc-alert-title">Course Assignment Roster (CAR)</strong>
+      {'Add instructors and admins for ' + (orgName || orgCode) + '. Each person will be granted course access roles across all courses for this organization.'}
+      <div className="sc-car-note">
+        <strong>Note:</strong>
+        {' Each email must belong to an existing, activated platform account — Studio roles cannot be assigned without one.'}
+      </div>
+    </Alert>
+    <div className="bulk-rerun-team-table">
+      <DataTable
+        columns={teamColumns}
+        data={orgRoster.map(m => ({ ...m, orgCode, apiStatus: emailStatus[m.email.trim()] }))}
+        itemCount={orgRoster.length}
+        initialTableOptions={{ autoResetSelectedRows: false }}
+      >
+        <DataTable.Table isStriped={false} />
+        <DataTable.EmptyTable content="No team members." />
+      </DataTable>
+    </div>
+    <div className="sc-team-footer">
+      <Button variant="outline-primary" size="sm" onClick={() => addOrgMember(orgCode)}>+ Add team member</Button>
+      {filledMembers > 0
+        ? (
+          <Toggle
+            id={'rp-' + orgCode}
+            checked={removeOp}
+            onChange={e => setRemoveOp(e.target.checked)}
+            label="Remove provisioner after provisioning"
+            hint="Unenrolls the provisioner account once all steps complete"
+          />
+        )
+        : (
+          <span className="sc-team-empty">
+            No team members added - provisioner account will be retained.
+          </span>
+        )}
+    </div>
+  </div>
+);
 
 export default TeamTab;

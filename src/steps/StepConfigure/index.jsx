@@ -3,11 +3,15 @@
 // savedCfg re-hydrates all local state when the user navigates Back from StepReview.
 // existsSet is serialised as an array in onNext(cfg) because Set is not hookstate-safe.
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Button, Alert, Spinner, Form, Badge, DataTable } from '@openedx/paragon';
+import { Button, Spinner, Form, Badge, DataTable } from '@openedx/paragon';
 
 import { useValidateCourseKeys, useSearchEmails } from '../../hooks';
 import { makeKey, validateRunId, detectConflict, isHardConflict, COURSE_ID_MAX_COMBINED, RUN_ID_RE } from '../../utils/courseKeys';
 import EditableRunCell from './EditableRunCell';
+import CertificatesTab from './CertificatesTab';
+import GatingTab from './GatingTab';
+import SchedulingTab from './SchedulingTab';
+import TeamTab from './TeamTab';
 import './index.scss';
 
 // ── Hoisted lookup maps ───────────────────────────────────────────────────────
@@ -18,16 +22,6 @@ const CONFLICT_LABEL = {
   org:    'Unknown org',
 };
 
-const CERT_DISPLAY_OPTS = [
-  { value: 'early_no_info', label: 'Immediately upon passing (early_no_info)' },
-  { value: 'early_with_info', label: 'Immediately with course info' },
-  { value: 'end', label: 'After course end date' },
-];
-const GATING_MODES = [
-  { v: 'copy',     title: 'Copy from source', desc: 'Replicate source course gating rules' },
-  { v: 'custom',   title: 'Custom map',      desc: 'Define prerequisite blocks with min score/completion' },
-  { v: 'disabled', title: 'Disabled',       desc: 'No gating - all content immediately accessible' },
-];
 
 // Pure helper — returns display info for a team member's account status
 function emailStatusInfo(trimmed, apiStatus) {
@@ -86,36 +80,7 @@ function TeamEmailCell({
   );
 }
 
-// Inline label helper — Form.Label with optional hint text
-function Lbl({ children, hint }) {
-  return (
-    <Form.Label className="sc-lbl">
-      {children}
-      {hint && <span className="sc-lbl-hint">{hint}</span>}
-    </Form.Label>
-  );
-}
 
-// Toggle row — native checkbox role="switch" to avoid Paragon FormSwitch prop-type warnings
-function Toggle({ id, checked, onChange, label, hint }) {
-  return (
-    <div className="sc-toggle">
-      <div className="sc-toggle__text">
-        <div className="sc-toggle__label">{label}</div>
-        {hint && <span className="sc-toggle__hint">{hint}</span>}
-      </div>
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        checked={checked}
-        onChange={onChange}
-        aria-label={label}
-        className="sc-toggle__switch"
-      />
-    </div>
-  );
-}
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
@@ -630,140 +595,21 @@ export default function StepConfigure({
 
           {/* ── Scheduling tab ── */}
           {tab === 'scheduling' && (
-            <div>
-              <div className="sc-grid-2">
-                {[['Course start date','start'],['Course end date','end'],['Enrollment start','enrollStart'],['Enrollment end','enrollEnd']].map(([lbl, k]) => (
-                  <div key={k}>
-                    <Lbl>{lbl}</Lbl>
-                    <Form.Control
-                      type="date"
-                      value={sched[k]}
-                      isInvalid={!!schedErrs[k]}
-                      onChange={e => setSched(p => ({ ...p, [k]: e.target.value }))}
-                    />
-                    {schedErrs[k] && <div className="sc-field-err">{schedErrs[k]}</div>}
-                  </div>
-                ))}
-                <div>
-                  <Lbl>Course pacing</Lbl>
-                  <Form.Control as="select" value={sched.pacing} onChange={e => setSched(p => ({ ...p, pacing: e.target.value }))}>
-                    <option value="instructor">Instructor-paced</option>
-                    <option value="self">Self-paced</option>
-                  </Form.Control>
-                </div>
-                <div>
-                  <Lbl>Target run identifier</Lbl>
-                  <div className="sc-run-field">
-                    <Form.Control
-                      value={runId}
-                      className="font-monospace"
-                      isInvalid={!runIdV.ok && runId.length > 0}
-                      onChange={e => setRunId(e.target.value)}
-                      placeholder="e.g. 2026_2027"
-                      style={runId.length > 0 ? { paddingRight: 30 } : undefined}
-                    />
-                    {runId.length > 0 && (
-                      <span className={`sc-run-indicator sc-run-indicator--${runIdV.ok ? 'ok' : 'err'}`}>
-                        {runIdV.ok ? '✓' : '✗'}
-                      </span>
-                    )}
-                  </div>
-                  {runId.length > 0 && (
-                    <div className={`sc-run-msg sc-run-msg--${runIdV.ok ? 'ok' : 'err'}`}>
-                      {runIdV.msg}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {!schedOkUI && (
-                <Alert variant="warning" className="mb-0 mt-2 py-2">
-                  <strong className="sc-alert-title">Fix scheduling dates before continuing</strong>
-                  The date configuration has issues that must be resolved.
-                </Alert>
-              )}
-              {schedOkUI && runIdV.ok && (
-                <Alert variant="info" className="mb-0 mt-2 py-2">
-                  <strong className="sc-alert-title">Run identifier applied to all course runs</strong>
-                  Changing this updates every row. Individual overrides available in the table below.
-                </Alert>
-              )}
-            </div>
+            <SchedulingTab
+              sched={sched} setSched={setSched}
+              runId={runId} setRunId={setRunId}
+              schedErrs={schedErrs} schedOkUI={schedOkUI} runIdV={runIdV}
+            />
           )}
 
           {/* ── Certificates tab ── */}
           {tab === 'certs' && (
-            <div>
-              <Alert variant="info" className="mb-3 py-2">
-                <strong className="sc-alert-title">Global certificate template</strong>
-                A single branded certificate template is applied across all organizations.
-              </Alert>
-              <div className="sc-grid-2">
-                <div>
-                  <Lbl hint="Audit to Honor per workflow">Course mode</Lbl>
-                  <Form.Control as="select" value={certs.mode} onChange={e => setCerts(p => ({ ...p, mode: e.target.value }))}>
-                    <option value="honor">Honor</option>
-                    <option value="audit">Audit</option>
-                    <option value="verified">Verified</option>
-                  </Form.Control>
-                </div>
-                <div>
-                  <Lbl hint="Open edX display constant">Certificate display behavior</Lbl>
-                  <Form.Control as="select" value={certs.display} onChange={e => setCerts(p => ({ ...p, display: e.target.value }))}>
-                    {CERT_DISPLAY_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </Form.Control>
-                </div>
-              </div>
-              <Toggle id="cc" checked={certs.create}         onChange={e => setCerts(p => ({ ...p, create: e.target.checked }))}         label="Create and activate certificate"          hint="Creates the honor certificate and marks it active in Studio" />
-              <Toggle id="sg" checked={certs.studentGenCert}  onChange={e => setCerts(p => ({ ...p, studentGenCert: e.target.checked }))}  label="Enable student-generated certificates"    hint="Students can generate certificates from the Instructor tab" />
-              <Toggle id="db" checked={certs.certOnDashboard} onChange={e => setCerts(p => ({ ...p, certOnDashboard: e.target.checked }))} label="Display certificate on learner dashboard" hint="Certificate link visible immediately upon earning" />
-            </div>
+            <CertificatesTab certs={certs} setCerts={setCerts} />
           )}
 
           {/* ── Lesson Gating tab ── */}
           {tab === 'gating' && (
-            <div>
-              <Alert variant="info" className="mb-3 py-2">
-                <strong className="sc-alert-title">Lesson gating - subsection prerequisites</strong>
-                Uses openedx.core.lib.gating API. Safe default is Copy from source.
-              </Alert>
-              <div className="sc-gating-mode-wrap">
-                <Lbl>Gating mode</Lbl>
-                <div className="sc-gating-grid">
-                  {GATING_MODES.map(m => (
-                    <label key={m.v} className={`sc-gating-option${gating.mode === m.v ? ' sc-gating-option--active' : ''}`}>
-                      <input
-                        type="radio"
-                        name="gmode"
-                        value={m.v}
-                        checked={gating.mode === m.v}
-                        onChange={() => setGating(p => ({ ...p, mode: m.v }))}
-                      />
-                      <div>
-                        <div className="sc-gating-option__title">{m.title}</div>
-                        <div className="sc-gating-option__desc">{m.desc}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {gating.mode === 'custom' && (
-                <div className="sc-grid-2">
-                  <div>
-                    <Lbl hint="0-100">Min score %</Lbl>
-                    <Form.Control value={gating.minScore} className="font-monospace" onChange={e => setGating(p => ({ ...p, minScore: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Lbl hint="0-100">Min completion %</Lbl>
-                    <Form.Control value={gating.minComplete} className="font-monospace" onChange={e => setGating(p => ({ ...p, minComplete: e.target.value }))} />
-                  </div>
-                </div>
-              )}
-              {gating.mode === 'disabled' && (
-                <div className="sc-gating-disabled">
-                  No gating applied. All sections accessible immediately.
-                </div>
-              )}
-            </div>
+            <GatingTab gating={gating} setGating={setGating} />
           )}
 
         </div>
@@ -866,46 +712,14 @@ export default function StepConfigure({
 
                     {/* ── Team & Access tab ── */}
                     {activeOrgTab === 'team' && (
-                      <div className="sc-team-content">
-                        <Alert variant="info" className="mb-3 py-2">
-                          <strong className="sc-alert-title">Course Assignment Roster (CAR)</strong>
-                          {'Add instructors and admins for ' + (orgName || orgCode) + '. Each person will be granted course access roles across all courses for this organization.'}
-                          <div className="sc-car-note">
-                            <strong>Note:</strong>
-                            {' Each email must belong to an existing, activated platform account — Studio roles cannot be assigned without one.'}
-                          </div>
-                        </Alert>
-                        <div className="bulk-rerun-team-table">
-                          <DataTable
-                            columns={teamColumns}
-                            data={orgRoster.map(m => ({ ...m, orgCode, apiStatus: emailStatus[m.email.trim()] }))}
-                            itemCount={orgRoster.length}
-                            initialTableOptions={{ autoResetSelectedRows: false }}
-                          >
-                            <DataTable.Table isStriped={false} />
-                            <DataTable.EmptyTable content="No team members." />
-                          </DataTable>
-                        </div>
-
-                        <div className="sc-team-footer">
-                          <Button variant="outline-primary" size="sm" onClick={() => addOrgMember(orgCode)}>+ Add team member</Button>
-                          {filledMembers > 0
-                            ? (
-                              <Toggle
-                                id={'rp-' + orgCode}
-                                checked={removeOp}
-                                onChange={e => setRemoveOp(e.target.checked)}
-                                label="Remove provisioner after provisioning"
-                                hint="Unenrolls the provisioner account once all steps complete"
-                              />
-                            )
-                            : (
-                              <span className="sc-team-empty">
-                                No team members added - provisioner account will be retained.
-                              </span>
-                            )}
-                        </div>
-                      </div>
+                      <TeamTab
+                        orgCode={orgCode} orgName={orgName}
+                        orgRoster={orgRoster} emailStatus={emailStatus}
+                        teamColumns={teamColumns}
+                        addOrgMember={addOrgMember}
+                        removeOp={removeOp} setRemoveOp={setRemoveOp}
+                        filledMembers={filledMembers}
+                      />
                     )}
                   </>
                 )}
