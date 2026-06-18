@@ -53,7 +53,8 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
       student_gen_cert:         certs.studentGenCert,
       cert_on_dashboard:        certs.certOnDashboard,
       gating_mode:              gating.mode,
-      gating_template_id:       gating.templateId ?? '',
+      gating_min_score:         gating.minScore ?? '80',
+      gating_min_completion:    gating.minComplete ?? '100',
       remove_provisioner_after: removeOp,
     },
     team_members: Object.entries(orgRosters)

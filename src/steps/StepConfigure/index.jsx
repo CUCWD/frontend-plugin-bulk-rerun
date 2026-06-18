@@ -24,10 +24,9 @@ const CERT_DISPLAY_OPTS = [
   { value: 'end', label: 'After course end date' },
 ];
 const GATING_MODES = [
-  { v: 'disabled', title: 'Disabled',       desc: 'No gating - all content immediately accessible' },
   { v: 'copy',     title: 'Copy from source', desc: 'Replicate source course gating rules' },
-  { v: 'template', title: 'Apply template',  desc: 'Use a predefined gating template by ID' },
   { v: 'custom',   title: 'Custom map',      desc: 'Define prerequisite blocks with min score/completion' },
+  { v: 'disabled', title: 'Disabled',       desc: 'No gating - all content immediately accessible' },
 ];
 
 // Pure helper — returns display info for a team member's account status
@@ -148,7 +147,7 @@ export default function StepConfigure({
   });
   const [orgRosters,      setOrgRosters]      = useState(savedCfg?.orgRosters || {});
   const [removeOp,        setRemoveOp]        = useState(savedCfg?.removeOp ?? true);
-  const [gating,          setGating]          = useState(savedCfg?.gating || { mode: 'disabled', templateId: '', minScore: '80', minComplete: '100' });
+  const [gating,          setGating]          = useState(savedCfg?.gating || { mode: 'copy', templateId: '', minScore: '80', minComplete: '100' });
   const [rows,            setRows]            = useState(initRows);
   const [rowRunOverrides, setRowRunOverrides] = useState(savedCfg?.rowRunOverrides || {});
   const [orgActiveTab,    setOrgActiveTab]    = useState({});
@@ -725,7 +724,7 @@ export default function StepConfigure({
             <div>
               <Alert variant="info" className="mb-3 py-2">
                 <strong className="sc-alert-title">Lesson gating - subsection prerequisites</strong>
-                Uses openedx.core.lib.gating API. Safe default is Disabled.
+                Uses openedx.core.lib.gating API. Safe default is Copy from source.
               </Alert>
               <div className="sc-gating-mode-wrap">
                 <Lbl>Gating mode</Lbl>
@@ -747,13 +746,7 @@ export default function StepConfigure({
                   ))}
                 </div>
               </div>
-              {gating.mode === 'template' && (
-                <div className="sc-gating-field">
-                  <Lbl>Gating template ID</Lbl>
-                  <Form.Control value={gating.templateId} className="font-monospace" onChange={e => setGating(p => ({ ...p, templateId: e.target.value }))} placeholder="template-uuid" />
-                </div>
-              )}
-              {(gating.mode === 'template' || gating.mode === 'custom') && (
+              {gating.mode === 'custom' && (
                 <div className="sc-grid-2">
                   <div>
                     <Lbl hint="0-100">Min score %</Lbl>

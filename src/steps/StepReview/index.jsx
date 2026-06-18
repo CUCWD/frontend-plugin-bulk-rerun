@@ -260,7 +260,9 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
               ['Organizations',      orgs.join(', ') || '-'],
               ['Team members',       rosterFilled.length ? (rosterFilled.length + ' from CAR') : 'None'],
               ['Remove provisioner', removeOp ? 'Yes' : 'No'],
-              ['Lesson gating',      gatingLabel],
+              ['Lesson gating',      gating.mode === 'custom'
+                ? `${gatingLabel} (${gating.minScore ?? '80'}% min score, ${gating.minComplete ?? '100'}% min completion)`
+                : gatingLabel],
               ['Key conflicts',      nHardConf > 0 ? (nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '')) : nExistsConf > 0 ? (nExistsConf + ' existing') : 'None'],
             ].map(([k, v]) => (
               <div key={k} className="sr-settings-row">

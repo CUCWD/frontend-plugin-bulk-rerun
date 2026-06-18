@@ -19,21 +19,10 @@ const GatingTab = () => {
           onChange={e => setGating({ mode: e.target.value })}
         >
           <option value="disabled">Disabled</option>
-          <option value="enabled">Enabled</option>
-          <option value="template">From template</option>
+          <option value="copy">Copy from source</option>
+          <option value="custom">Custom map</option>
         </Form.Control>
       </Form.Group>
-      {gating.mode === 'template' && (
-        <Form.Group>
-          <Form.Label>Template course key</Form.Label>
-          <Form.Control
-            className="font-monospace"
-            value={gating.templateId}
-            onChange={e => setGating({ templateId: e.target.value })}
-            placeholder="course-v1:ORG+COURSE+RUN"
-          />
-        </Form.Group>
-      )}
     </div>
   );
 };
