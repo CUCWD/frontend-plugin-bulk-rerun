@@ -33,6 +33,7 @@ import { Button, Alert, Spinner, ProgressBar, Badge } from '@openedx/paragon';
 
 import { useBatch, useJobLogs } from '../hooks';
 import { makeKey } from '../utils/courseKeys';
+import { buildExport } from '../utils/buildExport';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
 import './JobProgress.scss';
@@ -76,9 +77,6 @@ const PROGRAM_LOGS = [
   { d: 4000, lv: 'ok',   msg: 'Program linking complete.' },
 ];
 
-const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_e) { return iso || ''; } };
-
-const MODE_LBL = { program: 'By Program', neworg: 'New Organization', course: 'By Individual Course' };
 
 const mapApiStatus = (s) => {
   if (s === 'succeeded') return 'success';
@@ -429,44 +427,50 @@ export default function JobProgress({
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const buildExport = () => {
-    const modeLabel  = MODE_LBL[fromMode] || fromMode;
-    const progLabel  = prog ? (prog.icon || '') + ' ' + prog.name : 'Mixed / Individual';
-    const statusTxt  = batchDone
-      ? (batchFail === 0 ? 'Complete' : 'Partial failures')
-      : 'In progress';
-    const lines = [
-      'BULK COURSE RERUN SUMMARY',
-      '═'.repeat(52),
-      'Date:        ' + fmtDate(createdAt),
-      'Created by:  ' + (createdBy || '-'),
-      'Mode:        ' + modeLabel + (prog ? '  -  ' + progLabel : ''),
-      'Target run:  ' + (cfg?.runId || '-'),
-      'Dry run:     ' + (isDryRun ? 'Yes' : 'No'),
-      'Status:      ' + statusTxt,
-      'Courses:     ' + rows.length + ' total across ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : ''),
-      '',
-    ];
-    orgs.forEach(orgCode => {
-      const orgRows = rows.filter(r => r.org === orgCode).sort((a, b) => a.srcNum.localeCompare(b.srcNum));
-      lines.push('-- ' + orgCode + ' ' + '-'.repeat(Math.max(0, 44 - orgCode.length)));
-      orgRows.forEach(r => {
-        const job = courseItems.find(it => it.r?.id === r.id);
-        const icon = job?.status === 'success' ? 'v' : job?.status === 'failed' ? 'x' : job?.status === 'running' ? '*' : 'o';
-        lines.push(icon + ' ' + r.name);
-        lines.push('  Source:  ' + makeKey(r.srcOrg, r.srcNum, r.srcRun));
-        lines.push('  Target:  ' + makeKey(r.org, r.num, r.run));
-      });
-      lines.push('');
-    });
-    return lines.join('\n');
-  };
+  const handleBuildExport = () => buildExport({
+    batchId,
+    isDryRun,
+    createdAt,
+    createdBy,
+    mode:      fromMode,
+    progName:  prog ? ((prog.icon ? prog.icon + ' ' : '') + prog.name) : null,
+    targetRun: cfg?.runId || '',
+    status:    batchDone ? (batchFail === 0 ? 'succeeded' : batchFail === courseItems.length ? 'failed' : 'partial') : 'running',
+    orgs,
+    cfg:       cfg || null,
+    jobs:      courseItems.map(it => ({
+      org:       it.r?.org || '',
+      name:      it.r?.name || it.r?.num || '',
+      srcKey:    makeKey(it.r?.srcOrg || '', it.r?.srcNum || '', it.r?.srcRun || ''),
+      targetKey: makeKey(it.r?.org || '', it.r?.num || '', it.r?.run || ''),
+      status:    it.status,
+      elapsed:   it.elapsed,
+      logs:      it.logs || [],
+      failReason: null,
+    })),
+  });
 
   const handleExport = () => {
-    const text = buildExport();
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2500);
-    }).catch(() => {});
+    const text = handleBuildExport();
+    const execFallback = () => {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    };
+    const writePromise = navigator.clipboard?.writeText(text);
+    if (writePromise) {
+      writePromise
+        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); })
+        .catch(execFallback);
+    } else {
+      execFallback();
+    }
   };
 
   // Stat card colors are per-card dynamic values — kept as inline style
@@ -559,7 +563,7 @@ export default function JobProgress({
           <div className="jp-card-header-right">
             {allComplete && (
               <Button variant="success" size="sm" onClick={handleExport}>
-                {copied ? 'Copied!' : 'Export summary'}
+                {copied ? 'Copied!' : 'Export report'}
               </Button>
             )}
           </div>

@@ -1,12 +1,12 @@
 // Tracking → History tab. Shows completed bulk runs sorted newest-first.
-// Each entry expands to show per-org course breakdowns with individual org-level
-// and full-batch plain-text exports (for support email use).
+// Each entry expands to show per-org course breakdowns with a full-batch
+// plain-text export button (for support email / Zendesk use).
 // History is stored in hookstate and persisted to localStorage via state.saveHistory().
 import { useState } from 'react';
 import { Button, Badge } from '@openedx/paragon';
+import { buildExport } from '../utils/buildExport';
 import './HistoryView.scss';
 
-const fmtDate      = iso => { try { return new Date(iso).toLocaleString(); }          catch (_e) { return iso || ''; } };
 const fmtDateShort = iso => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (_e) { return iso || ''; } };
 
 const STATUS_LBL  = { succeeded: 'Succeeded', partial: 'Partial', failed: 'Failed', running: 'Running' };
@@ -28,56 +28,6 @@ function orgGroups(entry) {
   }));
 }
 
-// ── Export text builders ──────────────────────────────────────────────────────
-function exportOrgText(entry, group) {
-  return [
-    'Bulk Rerun Summary  -  ' + group.orgName + ' (' + group.org + ')',
-    '-'.repeat(60),
-    'Job ID:     BR-' + (entry.batchId || entry.id.replace(/^recovered-/, '')),
-    'Run ID:     ' + entry.targetRun,
-    'Date:       ' + fmtDate(entry.createdAt),
-    'Created by: ' + entry.createdBy,
-    'Mode:       ' + modeLabel(entry) + (entry.progName ? '  -  ' + entry.progName : ''),
-    'Dry run:    ' + (entry.isDryRun ? 'Yes  -  no changes applied' : 'No'),
-    '',
-    'Course Changes:',
-    ...group.jobs.map(j => '  ' + (j.status === 'success' ? '✓' : '✗') + ' ' + j.srcKey + '\n       -> ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
-    '',
-    'Total: ' + group.jobs.length + ' courses  |  ' +
-      group.jobs.filter(j => j.status === 'success').length + ' succeeded  |  ' +
-      group.jobs.filter(j => j.status !== 'success').length + ' failed',
-    '',
-    'Generated ' + new Date().toLocaleString() + ' for support / email use.',
-  ].join('\n');
-}
-
-function exportBatchText(entry) {
-  const groups    = orgGroups(entry);
-  const succeeded = (entry.jobs || []).filter(j => j.status === 'success').length;
-  return [
-    'BULK RERUN COMPLETE SUMMARY',
-    '='.repeat(60),
-    'Job ID:     BR-' + (entry.batchId || entry.id.replace(/^recovered-/, '')),
-    'Run ID:     ' + entry.targetRun,
-    'Date:       ' + fmtDate(entry.createdAt),
-    'Created by: ' + entry.createdBy,
-    'Mode:       ' + modeLabel(entry) + (entry.progName ? '  -  ' + entry.progName : ''),
-    'Status:     ' + statusLbl(entry.status),
-    'Dry run:    ' + (entry.isDryRun ? 'Yes  -  no changes applied' : 'No'),
-    'Courses:    ' + succeeded + '/' + (entry.jobs || []).length + ' succeeded',
-    'Orgs:       ' + (entry.orgs?.join(', ') || '-'),
-    '',
-    ...groups.flatMap(g => [
-      '='.repeat(60),
-      'ORG: ' + g.orgName + ' (' + g.org + ')',
-      '-'.repeat(40),
-      ...g.jobs.map(j => '  ' + (j.status === 'success' ? '✓' : '✗') + ' ' + j.targetKey + '   (' + (j.elapsed || '-') + ')'),
-      '  Summary: ' + g.jobs.filter(j => j.status === 'success').length + '/' + g.jobs.length + ' succeeded',
-      '',
-    ]),
-    'Generated ' + new Date().toLocaleString() + ' for support / email / ticket use.',
-  ].join('\n');
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function HistoryView({ entries, onView, onNewRun }) {
@@ -88,9 +38,24 @@ export default function HistoryView({ entries, onView, onNewRun }) {
   const [expandedOrg,  setExpandedOrg]  = useState({});
   const [copied, setCopied] = useState(null);
 
-  const copy = async (text, id) => {
-    try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 2500); }
-    catch (_e) { /* modern browsers only */ }
+  const copy = (text, id) => {
+    const done = () => { setCopied(id); setTimeout(() => setCopied(null), 2500); };
+    const execFallback = () => {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(el);
+      done();
+    };
+    const writePromise = navigator.clipboard?.writeText(text);
+    if (writePromise) {
+      writePromise.then(done).catch(execFallback);
+    } else {
+      execFallback();
+    }
   };
 
   return (
@@ -138,6 +103,7 @@ export default function HistoryView({ entries, onView, onNewRun }) {
 
       {/* Entry list */}
       {allEntries.map(entry => {
+        const copyKey   = entry.batchId || entry.createdAt || entry.id;
         const st        = entry.status;
         const isOpen    = expandedIds.has(entry.id);
         const groups    = orgGroups(entry);
@@ -170,11 +136,11 @@ export default function HistoryView({ entries, onView, onNewRun }) {
               </div>
 
               <div className="hv-entry-actions">
-                <Button variant="tertiary" size="sm" onClick={() => copy(exportBatchText(entry), 'all-' + entry.id)}>
-                  {copied === 'all-' + entry.id ? 'Copied!' : 'Export all'}
+                <Button variant="success" size="sm" onClick={() => copy(buildExport(entry), copyKey)}>
+                  {copied === copyKey ? 'Copied!' : 'Export report'}
                 </Button>
                 <Button variant="outline-primary" size="sm" onClick={() => onView(entry)}>View details</Button>
-                <Button variant="tertiary" size="sm" onClick={() => setExpandedIds(prev => { const n = new Set(prev); isOpen ? n.delete(entry.id) : n.add(entry.id); return n; })}>
+                <Button variant="outline-primary" size="sm" onClick={() => setExpandedIds(prev => { const n = new Set(prev); isOpen ? n.delete(entry.id) : n.add(entry.id); return n; })}>
                   {isOpen ? 'Hide' : 'Summary'}
                 </Button>
               </div>
@@ -202,9 +168,6 @@ export default function HistoryView({ entries, onView, onNewRun }) {
                           </span>
                           <span className="hv-org-chevron">{gOpen ? '▲' : '▼'}</span>
                         </div>
-                        <Button variant="tertiary" size="sm" onClick={() => copy(exportOrgText(entry, g), gKey)}>
-                          {copied === gKey ? 'Copied!' : 'Export org'}
-                        </Button>
                       </div>
 
                       {gOpen && (
@@ -227,19 +190,6 @@ export default function HistoryView({ entries, onView, onNewRun }) {
                   );
                 })}
 
-                {/* Batch export footer */}
-                <div className="hv-batch-footer">
-                  <span className="hv-batch-footer-text">
-                    Export individual org summaries above, or copy the full batch report:
-                  </span>
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={() => copy(exportBatchText(entry), 'all2-' + entry.id)}
-                  >
-                    {copied === 'all2-' + entry.id ? 'Copied to clipboard!' : 'Copy full batch report'}
-                  </Button>
-                </div>
               </div>
             )}
           </div>
