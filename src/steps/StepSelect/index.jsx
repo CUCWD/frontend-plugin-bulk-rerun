@@ -6,6 +6,7 @@ import { Card, Button, Spinner, DataTable } from '@openedx/paragon';
 
 import { stripRunPrefix } from '../../utils/courseKeys';
 import { useCourses, useOrgs, usePrograms } from '../../hooks';
+import DestOrgPicker from './DestOrgPicker';
 import './index.scss';
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -306,52 +307,15 @@ export default function StepSelect({ courseDiscoveryEnabled, onNext }) {
 
       {/* Destination orgs */}
       {courseCount > 0 && (
-        <div className="ss-dest">
-          <div className="ss-dest-header">
-            <div>
-              <div className="ss-dest-title">Destination organizations</div>
-              <div className="ss-dest-sub">Each selected course will be rerun for every checked organization.</div>
-            </div>
-            <div className="ss-dest-btns">
-              <Button variant="outline-primary" size="sm" onClick={() => setDestOrgSel(new Set(destOrgs.map(o => o.code)))}>All</Button>
-              {destOrgCount > 0 && (
-                <Button variant="tertiary" size="sm" onClick={() => setDestOrgSel(new Set())} className="ss-clear-btn">Clear</Button>
-              )}
-            </div>
-          </div>
-
-          {orgsLoading && (
-            <div className="ss-loading ss-loading--sm">
-              <Spinner animation="border" size="sm" className="me-2" />
-              Loading organizations…
-            </div>
-          )}
-          {orgsError && (
-            <div className="ss-error ss-error--sm">
-              Failed to load organizations. Please refresh and try again.
-            </div>
-          )}
-          {!orgsLoading && !orgsError && (
-            <div className="ss-org-grid">
-              {destOrgs.map(o => {
-                const on = destOrgSel.has(o.code);
-                return (
-                  <div
-                    key={o.code}
-                    onClick={() => toggleDestOrg(o.code)}
-                    className={`ss-org-item${on ? ' ss-org-item--selected' : ''}`}
-                  >
-                    <input type="checkbox" checked={on} readOnly />
-                    <div className="ss-org-inner">
-                      <div className="ss-org-item-name">{o.name}</div>
-                      <div className="ss-org-item-code">{o.code}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <DestOrgPicker
+          orgs={destOrgs}
+          selectedCodes={destOrgSel}
+          onToggle={toggleDestOrg}
+          onSelectAll={() => setDestOrgSel(new Set(destOrgs.map(o => o.code)))}
+          onClearAll={() => setDestOrgSel(new Set())}
+          isLoading={orgsLoading}
+          isError={orgsError}
+        />
       )}
 
       {/* Bottom action bar */}

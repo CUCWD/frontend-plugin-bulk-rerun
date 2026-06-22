@@ -1,0 +1,91 @@
+// Design tokens (local; mirrors values in index.scss)
+$ss-brand:     #006daa;
+$ss-brand-xlt: #eef6fb;
+$ss-border:    #dee2e6;
+$ss-g50:       #f8f9fa;
+$ss-g500:      #6c757d;
+$ss-g900:      #1f2937;
+$ss-mono:      "SFMono-Regular", "Courier New", monospace;
+
+// ── Destination organizations ─────────────────────────────────────────────────
+.ss-dest {
+  border-top: 2px solid $ss-border;
+  padding: 16px 20px;
+}
+
+.ss-dest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ss-dest-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: $ss-g900;
+  margin-bottom: 2px;
+}
+
+.ss-dest-sub {
+  font-size: 14px;
+  color: $ss-g500;
+}
+
+.ss-dest-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.ss-org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.ss-org-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid $ss-border;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color .12s, background .12s;
+
+  &:hover { background: $ss-g50; }
+
+  input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: $ss-brand;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  &--selected {
+    border-color: $ss-brand;
+    background: $ss-brand-xlt;
+
+    &:hover { background: $ss-brand-xlt; }
+  }
+}
+
+.ss-org-inner { min-width: 0; }
+
+.ss-org-item-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: $ss-g900;
+  white-space: normal;
+  word-break: break-word;
+
+  .ss-org-item--selected & { font-weight: 600; color: $ss-brand; }
+}
+
+.ss-org-item-code {
+  font-size: 13px;
+  color: $ss-g500;
+  font-family: $ss-mono;
+}
