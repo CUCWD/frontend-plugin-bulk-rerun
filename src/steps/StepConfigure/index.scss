@@ -1,22 +1,24 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$sc-brand:       #006DAA;
-$sc-brand-lt:    #DEEEF8;
-$sc-brand-xlt:   #EEF6FB;
-$sc-success:     #178253;
-$sc-success-bg:  #D4EDDA;
-$sc-danger:      #C32D3A;
-$sc-danger-bg:   #FDF0F1;
-$sc-danger-bdr:  #F1AEB5;
-$sc-warning:     #856404;
-$sc-warning-bdr: #FFC107;
-$sc-g50:         #F8F9FA;
-$sc-g200:        #E0E0E0;
-$sc-g300:        #C8C8C8;
-$sc-g500:        #6C757D;
-$sc-g700:        #454545;
-$sc-g900:        #1F2937;
-$sc-border:      #DEE2E6;
-$sc-mono:        "SFMono-Regular", "Courier New", monospace;
+$sc-brand:       t.$bulk-brand;
+$sc-brand-lt:    t.$bulk-brand-lt;
+$sc-brand-xlt:   t.$bulk-brand-xlt;
+$sc-success:     t.$bulk-success;
+$sc-success-bg:  t.$bulk-success-bg;
+$sc-danger:      t.$bulk-danger;
+$sc-danger-bg:   t.$bulk-danger-bg;
+$sc-danger-bdr:  t.$bulk-danger-bdr;
+$sc-warning:     t.$bulk-warning;
+$sc-warning-bdr: t.$bulk-warning-bdr;
+$sc-g50:         t.$bulk-g50;
+$sc-g200:        t.$bulk-g200;
+$sc-g300:        t.$bulk-g300;
+$sc-g500:        t.$bulk-g500;
+$sc-g700:        t.$bulk-g700;
+$sc-g900:        t.$bulk-g900;
+$sc-border:      t.$bulk-border;
+$sc-mono:        t.$bulk-mono;
 
 // ── Shared card layout ────────────────────────────────────────────────────────
 .sc-card {

@@ -1,18 +1,20 @@
 // Shared styles for JobProgress, PhaseHeader, and PhaseItemRows.
+@use '../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$jp-brand:     #006DAA;
-$jp-brand-xlt: #EEF6FB;
-$jp-success:   #178253;
-$jp-danger:    #C32D3A;
-$jp-g50:       #F8F9FA;
-$jp-g200:      #E0E0E0;
-$jp-g300:      #C8C8C8;
-$jp-g500:      #6C757D;
-$jp-g700:      #454545;
-$jp-g900:      #1F2937;
-$jp-border:    #DEE2E6;
-$jp-white:     #FFFFFF;
-$jp-mono:      "SFMono-Regular", "Courier New", monospace;
+$jp-brand:     t.$bulk-brand;
+$jp-brand-xlt: t.$bulk-brand-xlt;
+$jp-success:   t.$bulk-success;
+$jp-danger:    t.$bulk-danger;
+$jp-g50:       t.$bulk-g50;
+$jp-g200:      t.$bulk-g200;
+$jp-g300:      t.$bulk-g300;
+$jp-g500:      t.$bulk-g500;
+$jp-g700:      t.$bulk-g700;
+$jp-g900:      t.$bulk-g900;
+$jp-border:    t.$bulk-border;
+$jp-white:     t.$bulk-white;
+$jp-mono:      t.$bulk-mono;
 
 // ── Loading ────────────────────────────────────────────────────────────────────
 .jp-loading {

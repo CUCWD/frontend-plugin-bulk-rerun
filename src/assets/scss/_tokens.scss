@@ -1,0 +1,36 @@
+// ── Bulk Rerun global design tokens ───────────────────────────────────────────
+// Single source of truth for all color/typography values used across this
+// plugin. Component SCSS files @use this file and alias into their local
+// namespace (e.g. $sc-brand: t.$bulk-brand) so nothing else needs to change.
+
+// Brand
+$bulk-brand:       #006DAA;
+$bulk-brand-lt:    #DEEEF8;
+$bulk-brand-xlt:   #EEF6FB;
+
+// Semantic
+$bulk-success:     #178253;
+$bulk-success-bg:  #D4EDDA;
+$bulk-danger:      #C32D3A;
+$bulk-danger-bg:   #FDF0F1;
+$bulk-danger-bdr:  #F1AEB5;
+$bulk-warning:     #856404;
+$bulk-warning-bdr: #FFC107;
+
+// Grays
+$bulk-g50:         #F8F9FA;
+$bulk-g100:        #F0F0F0;
+$bulk-g200:        #E0E0E0;
+$bulk-g300:        #C8C8C8;
+$bulk-g400:        #9E9E9E;
+$bulk-g500:        #6C757D;
+$bulk-g700:        #454545;
+$bulk-g900:        #1F2937;
+
+// UI chrome
+$bulk-border:      #DEE2E6;
+$bulk-border-dark: #939CA5;
+$bulk-white:       #FFFFFF;
+
+// Typography
+$bulk-mono:        "SFMono-Regular", "Courier New", monospace;

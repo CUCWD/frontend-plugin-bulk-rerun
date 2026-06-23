@@ -1,21 +1,23 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$sr-brand:      #006DAA;
-$sr-brand-lt:   #DEEEF8;
-$sr-brand-xlt:  #EEF6FB;
-$sr-success:    #178253;
-$sr-success-bg: #D4EDDA;
-$sr-danger:     #C32D3A;
-$sr-danger-bg:  #FDF0F1;
-$sr-danger-bdr: #F1AEB5;
-$sr-warning:    #856404;
-$sr-warning-bdr: #FFC107;
-$sr-g50:        #F8F9FA;
-$sr-g500:       #6C757D;
-$sr-g700:       #454545;
-$sr-g900:       #1F2937;
-$sr-border:     #DEE2E6;
-$sr-white:      #FFFFFF;
-$sr-mono:       "SFMono-Regular", "Courier New", monospace;
+$sr-brand:       t.$bulk-brand;
+$sr-brand-lt:    t.$bulk-brand-lt;
+$sr-brand-xlt:   t.$bulk-brand-xlt;
+$sr-success:     t.$bulk-success;
+$sr-success-bg:  t.$bulk-success-bg;
+$sr-danger:      t.$bulk-danger;
+$sr-danger-bg:   t.$bulk-danger-bg;
+$sr-danger-bdr:  t.$bulk-danger-bdr;
+$sr-warning:     t.$bulk-warning;
+$sr-warning-bdr: t.$bulk-warning-bdr;
+$sr-g50:         t.$bulk-g50;
+$sr-g500:        t.$bulk-g500;
+$sr-g700:        t.$bulk-g700;
+$sr-g900:        t.$bulk-g900;
+$sr-border:      t.$bulk-border;
+$sr-white:       t.$bulk-white;
+$sr-mono:        t.$bulk-mono;
 
 // ── Alert extras ──────────────────────────────────────────────────────────────
 .sr-conflict-list {

@@ -1,17 +1,19 @@
+@use '../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$hv-brand:   #006DAA;
-$hv-success: #178253;
-$hv-danger:  #C32D3A;
-$hv-warning: #856404;
-$hv-g50:     #F8F9FA;
-$hv-g100:    #F0F0F0;
-$hv-g400:    #9E9E9E;
-$hv-g500:    #6C757D;
-$hv-g700:    #454545;
-$hv-g900:    #1F2937;
-$hv-border:  #DEE2E6;
-$hv-white:   #FFFFFF;
-$hv-mono:    "SFMono-Regular", "Courier New", monospace;
+$hv-brand:   t.$bulk-brand;
+$hv-success: t.$bulk-success;
+$hv-danger:  t.$bulk-danger;
+$hv-warning: t.$bulk-warning;
+$hv-g50:     t.$bulk-g50;
+$hv-g100:    t.$bulk-g100;
+$hv-g400:    t.$bulk-g400;
+$hv-g500:    t.$bulk-g500;
+$hv-g700:    t.$bulk-g700;
+$hv-g900:    t.$bulk-g900;
+$hv-border:  t.$bulk-border;
+$hv-white:   t.$bulk-white;
+$hv-mono:    t.$bulk-mono;
 
 // ── Header ────────────────────────────────────────────────────────────────────
 .hv-header {

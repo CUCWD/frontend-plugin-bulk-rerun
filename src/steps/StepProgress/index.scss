@@ -1,14 +1,16 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$sp-brand:   #006DAA;
-$sp-danger:  #C32D3A;
-$sp-warning: #856404;
-$sp-g50:     #F8F9FA;
-$sp-g500:    #6C757D;
-$sp-g700:    #454545;
-$sp-g900:    #1F2937;
-$sp-border:  #939CA5;
-$sp-white:   #FFFFFF;
-$sp-mono:    "SFMono-Regular", "Courier New", monospace;
+$sp-brand:   t.$bulk-brand;
+$sp-danger:  t.$bulk-danger;
+$sp-warning: t.$bulk-warning;
+$sp-g50:     t.$bulk-g50;
+$sp-g500:    t.$bulk-g500;
+$sp-g700:    t.$bulk-g700;
+$sp-g900:    t.$bulk-g900;
+$sp-border:  t.$bulk-border-dark;
+$sp-white:   t.$bulk-white;
+$sp-mono:    t.$bulk-mono;
 
 // ── Empty state ────────────────────────────────────────────────────────────────
 .sp-empty {
