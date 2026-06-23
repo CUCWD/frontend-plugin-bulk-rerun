@@ -1,0 +1,62 @@
+// ── Design tokens (subset used by GatingTab) ──────────────────────────────────
+$sc-brand:     #006DAA;
+$sc-brand-xlt: #EEF6FB;
+$sc-g50:       #F8F9FA;
+$sc-g500:      #6C757D;
+$sc-g900:      #1F2937;
+$sc-border:    #DEE2E6;
+
+// ── Gating mode grid ──────────────────────────────────────────────────────────
+.sc-gating-mode-wrap { margin-bottom: 16px; }
+
+.sc-gating-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sc-gating-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 2px solid $sc-border;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #FFFFFF;
+  transition: border .12s;
+
+  input[type="radio"] {
+    margin-top: 2px;
+    accent-color: $sc-brand;
+    flex-shrink: 0;
+  }
+
+  &--active {
+    border-color: $sc-brand;
+    background: $sc-brand-xlt;
+  }
+}
+
+.sc-gating-option__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: $sc-g900;
+}
+
+.sc-gating-option__desc {
+  font-size: 14px;
+  color: $sc-g500;
+  margin-top: 2px;
+}
+
+.sc-gating-field { margin-bottom: 12px; }
+
+.sc-gating-disabled {
+  padding: 11px 13px;
+  background: $sc-g50;
+  border-radius: 4px;
+  font-size: 15px;
+  color: $sc-g500;
+  border: 1px solid $sc-border;
+}

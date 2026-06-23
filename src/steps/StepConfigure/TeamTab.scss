@@ -1,0 +1,66 @@
+// ── Design tokens (subset used by TeamTab) ────────────────────────────────────
+$sc-g300:      #C8C8C8;
+$sc-g500:      #6C757D;
+$sc-g700:      #454545;
+$sc-danger:    #C32D3A;
+$sc-danger-bg: #FDF0F1;
+$sc-success:   #178253;
+$sc-warning:   #856404;
+
+// ── Team section ──────────────────────────────────────────────────────────────
+.sc-team-content { padding: 16px 20px; }
+
+.sc-team-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sc-team-empty {
+  font-size: 14px;
+  color: $sc-g500;
+  font-style: italic;
+}
+
+.sc-car-note {
+  margin-top: 6px;
+  font-size: 15px;
+  color: $sc-g700;
+}
+
+// ── Team DataTable cells ──────────────────────────────────────────────────────
+.sc-team-cell {
+  padding: 6px 8px;
+  display: block;
+  font-size: 15px;
+  background: #FFFFFF;
+
+  &--err    { background: $sc-danger-bg; }
+  &--nowrap { white-space: nowrap; }
+}
+
+.sc-team-remove {
+  color: $sc-danger;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 0;
+}
+
+// ── Email account-status indicator ───────────────────────────────────────────
+.sc-email-status {
+  font-size: 14px;
+  font-weight: 500;
+
+  &--ok    { color: $sc-success; }
+  &--err   { color: $sc-danger; }
+  &--warn  { color: $sc-warning; }
+  &--muted { color: $sc-g300; }
+
+  &__icon { margin-right: 4px; }
+}
+
+.sc-email-input { min-width: 220px; }

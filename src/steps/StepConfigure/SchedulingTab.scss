@@ -1,0 +1,35 @@
+// ── Design tokens (subset used by SchedulingTab) ──────────────────────────────
+$sc-success: #178253;
+$sc-danger:  #C32D3A;
+
+// ── Field error text ──────────────────────────────────────────────────────────
+.sc-field-err {
+  font-size: 13px;
+  color: $sc-danger;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+// ── Run-ID field with inline indicator ───────────────────────────────────────
+.sc-run-field { position: relative; }
+
+.sc-run-indicator {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  pointer-events: none;
+
+  &--ok  { color: $sc-success; }
+  &--err { color: $sc-danger; }
+}
+
+.sc-run-msg {
+  font-size: 13px;
+  margin-top: 3px;
+  font-weight: 500;
+
+  &--ok  { color: $sc-success; }
+  &--err { color: $sc-danger; }
+}

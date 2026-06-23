@@ -1,0 +1,426 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+$sr-brand:      #006DAA;
+$sr-brand-lt:   #DEEEF8;
+$sr-brand-xlt:  #EEF6FB;
+$sr-success:    #178253;
+$sr-success-bg: #D4EDDA;
+$sr-danger:     #C32D3A;
+$sr-danger-bg:  #FDF0F1;
+$sr-danger-bdr: #F1AEB5;
+$sr-warning:    #856404;
+$sr-warning-bdr: #FFC107;
+$sr-g50:        #F8F9FA;
+$sr-g500:       #6C757D;
+$sr-g700:       #454545;
+$sr-g900:       #1F2937;
+$sr-border:     #DEE2E6;
+$sr-white:      #FFFFFF;
+$sr-mono:       "SFMono-Regular", "Courier New", monospace;
+
+// ── Alert extras ──────────────────────────────────────────────────────────────
+.sr-conflict-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  line-height: 2;
+
+  code {
+    font-family: $sr-mono;
+    font-size: 12px;
+  }
+}
+
+.sr-alert-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sr-alert-title--sm {
+  display: block;
+  margin-bottom: 2px;
+}
+
+// ── Execution mode panel ───────────────────────────────────────────────────────
+.sr-exec-panel {
+  border: 1px solid $sr-border;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  background: $sr-white;
+}
+
+.sr-exec-panel-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid $sr-border;
+  font-weight: 600;
+  font-size: 16px;
+  color: $sr-g700;
+}
+
+.sr-exec-options {
+  padding: 12px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sr-exec-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid $sr-border;
+  border-radius: 4px;
+  cursor: pointer;
+  background: $sr-white;
+  transition: border-color .12s, background .12s;
+
+  &--active {
+    border-color: $sr-brand;
+    background: $sr-brand-xlt;
+  }
+
+  input[type="radio"] {
+    margin-top: 3px;
+    accent-color: $sr-brand;
+    flex-shrink: 0;
+  }
+}
+
+.sr-exec-option-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sr-exec-option-desc {
+  font-size: 12px;
+  color: $sr-g500;
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+// ── Settings summary grid ──────────────────────────────────────────────────────
+.sr-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sr-settings-card {
+  border: 1px solid $sr-border;
+  border-radius: 4px;
+  background: $sr-white;
+}
+
+.sr-settings-card-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid $sr-border;
+  font-weight: 600;
+  font-size: 16px;
+  color: $sr-g700;
+}
+
+.sr-settings-body { padding: 10px 16px; }
+
+.sr-settings-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 12px;
+  border-bottom: 1px solid $sr-border;
+  padding: 6px 0;
+}
+
+.sr-settings-key {
+  font-size: 14px;
+  color: $sr-g500;
+  white-space: nowrap;
+}
+
+.sr-settings-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: $sr-g900;
+
+  &--mono   { font-family: $sr-mono; }
+  &--ok     { color: $sr-success; }
+  &--warn   { color: $sr-warning; }
+  &--danger { color: $sr-danger; }
+}
+
+// ── Course runs accordion ──────────────────────────────────────────────────────
+.sr-accordion {
+  border: 1px solid $sr-border;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  background: $sr-white;
+}
+
+.sr-accordion-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid $sr-border;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sr-accordion-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: $sr-g700;
+}
+
+.sr-accordion-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.sr-org-section { border-bottom: 1px solid $sr-border; }
+
+.sr-org-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: $sr-g50;
+  border-left: 4px solid $sr-success;
+  transition: opacity .12s;
+
+  &:hover { opacity: .85; }
+
+  &--error {
+    background: $sr-danger-bg;
+    border-left-color: $sr-danger;
+  }
+}
+
+.sr-org-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: $sr-brand;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  .sr-org-header--error & { background: $sr-danger; }
+}
+
+.sr-org-code {
+  font-weight: 600;
+  font-size: 17px;
+  color: $sr-brand;
+
+  .sr-org-header--error & { color: $sr-danger; }
+}
+
+.sr-org-meta {
+  font-size: 14px;
+  color: $sr-g500;
+}
+
+.sr-org-spacer { flex: 1; }
+
+.sr-org-toggle {
+  font-size: 11px;
+  color: $sr-g500;
+}
+
+// ── Runs table (Paragon DataTable) ────────────────────────────────────────────
+.sr-runs-table-wrap {
+  overflow-x: auto;
+
+  table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .pgn__data-table td {
+    padding: 0 !important;
+    height: 1px;
+    vertical-align: middle;
+  }
+
+  .pgn__data-table-row td { border-bottom: 1px solid $sr-border; }
+
+  // height: 100% on block children works when the parent td has height: 1px.
+  .sr-cell {
+    height: 100%;
+    align-content: center;
+  }
+
+  .pgn__data-table thead {
+    th:nth-child(1) { width: 48px; }
+    th:nth-child(2) { width: 34%; }
+    th:nth-child(3) { width: 9%;  }
+    th:nth-child(4) { width: 12%; }
+    th:nth-child(5) { width: 8%;  }
+    th:nth-child(6) { width: 18%; }
+    th:nth-child(7) { width: 12%; }
+    th:nth-child(8) { width: 8%;  }
+
+    th:nth-child(2),
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5) {
+      background: $sr-success-bg;
+      color: $sr-success;
+      border-bottom: 2px solid $sr-success;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    th:nth-child(6),
+    th:nth-child(7),
+    th:nth-child(8) {
+      background: $sr-brand-lt;
+      color: $sr-brand;
+      border-bottom: 2px solid $sr-brand;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
+}
+
+// ── DataTable cell variants ────────────────────────────────────────────────────
+.sr-cell {
+  padding: 6px 10px;
+  display: block;
+  font-size: 15px;
+
+  &--indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-left: 3px solid transparent;
+    background: $sr-white;
+  }
+
+  &--src {
+    background: #F4FBF6;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  &--src-mono {
+    background: #F4FBF6;
+    font-family: $sr-mono;
+    font-size: 15px;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  &--tgt-mono {
+    background: $sr-brand-xlt;
+    font-family: $sr-mono;
+    font-size: 15px;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  &--exists   { background: #FFF5F5; }
+  &--conflict { background: #FFFBF0; }
+
+  &--exists.sr-cell--indicator   { border-left-color: $sr-danger; }
+  &--conflict.sr-cell--indicator { border-left-color: $sr-warning-bdr; }
+}
+
+.sr-conflict-icon {
+  cursor: help;
+  font-size: 15px;
+}
+
+.sr-ok-check {
+  color: $sr-success;
+  font-size: 14px;
+}
+
+// ── OrgRoleSummary ─────────────────────────────────────────────────────────────
+.sr-team-strip {
+  padding: 10px 16px;
+  border-top: 1px solid $sr-border;
+  background: #F9FAFB;
+}
+
+.sr-team-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: $sr-g500;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+}
+
+.sr-member-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sr-member-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: $sr-white;
+  border: 1px solid $sr-border;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.sr-member-email {
+  color: $sr-g900;
+  font-weight: 500;
+}
+
+.sr-role-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+
+  &--studio {
+    background: $sr-brand-lt;
+    color: $sr-brand;
+  }
+
+  &--disc {
+    background: #E8F7FC;
+    color: #055160;
+  }
+}
+
+// ── Submit error / action bar ──────────────────────────────────────────────────
+.sr-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sr-action-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sr-fix-btn {
+  color: $sr-danger !important;
+  border-color: $sr-danger-bdr !important;
+}
+
+.sr-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: .15em;
+  margin-right: 6px;
+}
