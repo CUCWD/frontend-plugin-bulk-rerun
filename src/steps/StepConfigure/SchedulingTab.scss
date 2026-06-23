@@ -1,6 +1,8 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens (subset used by SchedulingTab) ──────────────────────────────
-$sc-success: #178253;
-$sc-danger:  #C32D3A;
+$sc-success: t.$bulk-success;
+$sc-danger:  t.$bulk-danger;
 
 // ── Field error text ──────────────────────────────────────────────────────────
 .sc-field-err {

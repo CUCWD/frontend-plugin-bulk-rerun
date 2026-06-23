@@ -1,14 +1,16 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$ss-brand:     #006DAA;
-$ss-brand-lt:  #DEEEF8;
-$ss-brand-xlt: #EEF6FB;
-$ss-success:   #178253;
-$ss-danger:    #C32D3A;
-$ss-g50:       #F8F9FA;
-$ss-g500:      #6C757D;
-$ss-g900:      #1F2937;
-$ss-border:    #DEE2E6;
-$ss-mono:      "SFMono-Regular", "Courier New", monospace;
+$ss-brand:     t.$bulk-brand;
+$ss-brand-lt:  t.$bulk-brand-lt;
+$ss-brand-xlt: t.$bulk-brand-xlt;
+$ss-success:   t.$bulk-success;
+$ss-danger:    t.$bulk-danger;
+$ss-g50:       t.$bulk-g50;
+$ss-g500:      t.$bulk-g500;
+$ss-g900:      t.$bulk-g900;
+$ss-border:    t.$bulk-border;
+$ss-mono:      t.$bulk-mono;
 
 // ── Card header ───────────────────────────────────────────────────────────────
 .ss-header {

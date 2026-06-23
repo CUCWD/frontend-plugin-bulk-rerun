@@ -1,10 +1,12 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens (subset used by GatingTab) ──────────────────────────────────
-$sc-brand:     #006DAA;
-$sc-brand-xlt: #EEF6FB;
-$sc-g50:       #F8F9FA;
-$sc-g500:      #6C757D;
-$sc-g900:      #1F2937;
-$sc-border:    #DEE2E6;
+$sc-brand:     t.$bulk-brand;
+$sc-brand-xlt: t.$bulk-brand-xlt;
+$sc-g50:       t.$bulk-g50;
+$sc-g500:      t.$bulk-g500;
+$sc-g900:      t.$bulk-g900;
+$sc-border:    t.$bulk-border;
 
 // ── Gating mode grid ──────────────────────────────────────────────────────────
 .sc-gating-mode-wrap { margin-bottom: 16px; }

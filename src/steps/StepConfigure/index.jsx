@@ -3,31 +3,22 @@
 // savedCfg re-hydrates all local state when the user navigates Back from StepReview.
 // existsSet is serialised as an array in onNext(cfg) because Set is not hookstate-safe.
 import {
-  useState, useEffect, useRef, useCallback, useMemo,
+  useState, useEffect, useRef, useCallback,
 } from 'react';
 import PropTypes from 'prop-types';
-import {
-  Button, Spinner, Form, Badge, DataTable,
-} from '@openedx/paragon';
+import { Button, Spinner } from '@openedx/paragon';
 
 import { useValidateCourseKeys, useSearchEmails } from '../../hooks';
 import {
   makeKey, validateRunId, detectConflict, isHardConflict, COURSE_ID_MAX_COMBINED, RUN_ID_RE,
 } from '../../utils/courseKeys';
-import EditableRunCell from './EditableRunCell';
-import CertificatesTab from './CertificatesTab';
-import GatingTab from './GatingTab';
-import SchedulingTab from './SchedulingTab';
-import TeamTab from './TeamTab';
+import SharedSettingsCard from './SharedSettingsCard';
+import OrgAccordion from './OrgAccordion';
+import useCourseRunColumns from './useCourseRunColumns';
+import useTeamColumns from './useTeamColumns';
 import './index.scss';
 
-// ── Hoisted lookup maps ───────────────────────────────────────────────────────
-const CONFLICT_LABEL = {
-  exists: 'Already exists',
-  dup: 'Duplicate',
-  self: 'Same as source',
-  org: 'Unknown org',
-};
+// ── PropTypes ─────────────────────────────────────────────────────────────────
 
 const rosterMemberPropType = PropTypes.shape({
   email: PropTypes.string,
@@ -92,76 +83,6 @@ const savedCfgPropType = PropTypes.shape({
   gating: gatingPropType,
   rowRunOverrides: PropTypes.objectOf(PropTypes.string),
 });
-
-// Pure helper — returns display info for a team member's account status
-function emailStatusInfo(trimmed, apiStatus) {
-  if (!trimmed) { return { label: '—', cls: 'sc-email-status--muted', icon: null }; }
-  if (!trimmed.includes('@')) { return { label: 'Invalid email', cls: 'sc-email-status--err', icon: '✗' }; }
-  if (apiStatus === 'found') { return { label: 'Account found', cls: 'sc-email-status--ok', icon: '✓' }; }
-  if (apiStatus === 'not_found') { return { label: 'No account found', cls: 'sc-email-status--err', icon: '✗' }; }
-  if (apiStatus === 'unknown') { return { label: 'Lookup failed', cls: 'sc-email-status--warn', icon: '⚠' }; }
-  if (apiStatus === 'checking') { return { label: null, cls: 'sc-email-status--muted', icon: null }; }
-  return { label: 'Pending…', cls: 'sc-email-status--muted', icon: null };
-}
-
-// Conflict class helper for course-run DataTable cells
-const conflictCls = (conflict) => {
-  if (conflict === 'exists') { return ' sc-cell--exists'; }
-  if (conflict) { return ' sc-cell--conflict'; }
-  return '';
-};
-
-// Isolated email input — manages local state so typing never triggers a parent
-// re-render. Commits to orgRosters (and starts verification) 2 s after the user
-// stops typing, or immediately on blur so tabbing away also works.
-const TeamEmailCell = ({
-  value: externalValue, orgCode, rowIndex, apiStatus, onUpdate,
-}) => {
-  const [localValue, setLocalValue] = useState(externalValue);
-  const timerRef = useRef(null);
-
-  // Sync if external value changes (e.g. savedCfg re-hydration or row reset)
-  useEffect(() => { setLocalValue(externalValue); }, [externalValue]);
-
-  // Cancel pending timer on unmount
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  const handleChange = e => {
-    const v = e.target.value;
-    setLocalValue(v);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => onUpdate(orgCode, rowIndex, 'email', v), 1000);
-  };
-
-  const handleBlur = () => {
-    clearTimeout(timerRef.current);
-    onUpdate(orgCode, rowIndex, 'email', localValue);
-  };
-
-  const trimmed = localValue.trim();
-  const isInvalid = apiStatus === 'not_found' || (!trimmed.includes('@') && trimmed.length > 0);
-
-  return (
-    <Form.Control
-      size="sm"
-      value={localValue}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      placeholder="instructor@example.org"
-      className="sc-email-input"
-      isInvalid={isInvalid}
-    />
-  );
-};
-
-TeamEmailCell.propTypes = {
-  value: PropTypes.string.isRequired,
-  orgCode: PropTypes.string.isRequired,
-  rowIndex: PropTypes.number.isRequired,
-  apiStatus: PropTypes.string,
-  onUpdate: PropTypes.func.isRequired,
-};
-TeamEmailCell.defaultProps = { apiStatus: undefined };
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
@@ -250,7 +171,6 @@ const StepConfigure = ({
     return s === 'not_found';
   }).length;
 
-  // Emails that have a valid format but haven't resolved yet (checking or no result)
   const teamChecking = Object.values(orgRosters).flat().filter(m => {
     if (!m.email || !m.email.includes('@')) { return false; }
     const s = emailStatus[m.email.trim()];
@@ -269,7 +189,7 @@ const StepConfigure = ({
       };
     });
 
-  // ── Scheduling validation — HOISTED above return() ─────────────────────────
+  // ── Scheduling validation ──────────────────────────────────────────────────
   const schedErrs = {};
   if (!sched.start) { schedErrs.start = 'Required'; }
   if (!sched.end) { schedErrs.end = 'Required'; }
@@ -281,7 +201,7 @@ const StepConfigure = ({
   if (sched.end && sched.enrollEnd && sched.enrollEnd > sched.end) { schedErrs.enrollEnd = 'Enrollment must close on or before course end'; }
   const schedOkUI = Object.keys(schedErrs).length === 0;
 
-  // ── Debounced validation ───────────────────────────────────────────────────
+  // ── Debounced course-key validation ───────────────────────────────────────
   const sig = effectiveRows.map(r => `${r.org }|${ r.num }|${ r.run}`).join(',');
 
   useEffect(() => {
@@ -291,9 +211,6 @@ const StepConfigure = ({
     cancelRef.current = false;
 
     timerRef.current = setTimeout(async () => {
-      // Wait until every effective run ID (global default + per-row overrides)
-      // passes format validation before hitting the API — same logic as the
-      // "Target run identifier" field guard added above.
       if (rowsRef.current.some(r => !validateRunId(r.run, runMaxLen).ok)) { return; }
       setChecking(true);
       try {
@@ -319,7 +236,7 @@ const StepConfigure = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
-  // ── Email account validation (debounced 800 ms) ────────────────────────────
+  // ── Debounced email account validation ────────────────────────────────────
   const emailSig = JSON.stringify(
     Object.values(orgRosters).flat().map(m => m.email.trim()).filter(Boolean)
       .sort(),
@@ -389,254 +306,14 @@ const StepConfigure = ({
 
   const removeRow = i => setRows(p => p.filter((_, j) => j !== i));
 
-  // ── Course-run DataTable columns ───────────────────────────────────────────
-  /* eslint-disable react/no-unstable-nested-components, react/prop-types */
-  const courseRunColumns = useMemo(() => [
-    {
-      id: 'indicator',
-      Header: '',
-      accessor: 'conflict',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { conflict, lenErr } = row.original;
-        const indCls = lenErr && !conflict ? ' sc-cell--exists' : conflictCls(conflict);
-        let indicator = null;
-        if (checkingRef.current) {
-          indicator = <Spinner animation="border" size="sm" className="sc-spinner-sm" />;
-        } else if (conflict || lenErr) {
-          let icon = '⚠️';
-          if (conflict === 'exists') { icon = '🚫'; } else if (lenErr) { icon = '✗'; }
-          indicator = <span className="sc-conflict-icon">{icon}</span>;
-        } else if (validatedRef.current) {
-          indicator = <span className="sc-ok-check">✓</span>;
-        }
-        return (
-          <div className={`sc-cell sc-cell--indicator${indCls}`}>
-            {indicator}
-          </div>
-        );
-      },
-    },
-    {
-      Header: 'Course name',
-      accessor: 'name',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--src${conflictCls(row.original.conflict)}`}>
-          {row.original.name}
-        </div>
-      ),
-    },
-    {
-      Header: 'Src org',
-      accessor: 'srcOrg',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
-          {row.original.srcOrg}
-        </div>
-      ),
-    },
-    {
-      Header: 'Src course #',
-      accessor: 'srcNum',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
-          {row.original.srcNum}
-        </div>
-      ),
-    },
-    {
-      Header: 'Src run',
-      accessor: 'srcRun',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--src-mono${conflictCls(row.original.conflict)}`}>
-          {row.original.srcRun}
-        </div>
-      ),
-    },
-    {
-      Header: 'Target org',
-      accessor: 'org',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--tgt${conflictCls(row.original.conflict)}`}>
-          {row.original.org}
-        </div>
-      ),
-    },
-    {
-      Header: 'Target course #',
-      accessor: 'num',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--tgt${conflictCls(row.original.conflict)}`}>
-          {row.original.num}
-        </div>
-      ),
-    },
-    {
-      Header: 'Target run',
-      accessor: 'run',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <div className={`sc-cell sc-cell--tgt-run${conflictCls(row.original.conflict)}`}>
-          <EditableRunCell
-            value={row.original.run}
-            onChange={v => updateRunOverride(row.original.id, v)}
-            hasError={!!row.original.conflict || !!row.original.lenErr}
-          />
-        </div>
-      ),
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [updateRunOverride]);
-  /* eslint-enable react/no-unstable-nested-components, react/prop-types */
-
-  // Renders the full-width conflict detail that appears beneath each conflicted row.
-  /* eslint-disable react/prop-types */
-  const renderCourseRunSubRow = useCallback(({ row }) => {
-    const { conflict, lenErr, idx } = row.original;
-    if (!conflict && !lenErr) { return null; }
-    const subRowCls = (conflict === 'exists' || lenErr) ? 'sc-sub-row--exists' : 'sc-sub-row--conflict';
-    const combined = row.original.org.length + row.original.num.length + row.original.run.length;
-    return (
-      <div className={`sc-sub-row ${subRowCls}`}>
-        {lenErr && (
-          <Badge variant="danger" className="sc-badge-sm">
-            {`ID too long: ${combined}/${COURSE_ID_MAX_COMBINED} chars (org+num+run)`}
-          </Badge>
-        )}
-        {conflict && (
-          <Badge variant={conflict === 'exists' ? 'danger' : 'warning'} className="sc-badge-sm">
-            {CONFLICT_LABEL[conflict]}
-          </Badge>
-        )}
-        {conflict === 'exists' && (
-          <button type="button" onClick={() => removeRow(idx)} className="sc-remove-btn">
-            × Remove
-          </button>
-        )}
-      </div>
-    );
-  }, [removeRow]);
-  /* eslint-enable react/prop-types */
-
-  // ── Team-member DataTable columns ─────────────────────────────────────────
-  // apiStatus is read from row.original (embedded in data), NOT from the emailStatus
-  // closure — this keeps teamColumns stable so DataTable never remounts cells.
-  /* eslint-disable react/no-unstable-nested-components, react/prop-types */
-  const teamColumns = useMemo(() => [
-    {
-      Header: 'Email address',
-      accessor: 'email',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { email, orgCode: oc, apiStatus } = row.original;
-        return (
-          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
-            <TeamEmailCell
-              value={email}
-              orgCode={oc}
-              rowIndex={row.index}
-              apiStatus={apiStatus}
-              onUpdate={updateOrgRoster}
-            />
-          </div>
-        );
-      },
-    },
-    {
-      Header: 'Studio role',
-      accessor: 'studio',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { apiStatus } = row.original;
-        return (
-          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
-            <Form.Control
-              as="select"
-              size="sm"
-              value={row.original.studio}
-              onChange={e => updateOrgRoster(row.original.orgCode, row.index, 'studio', e.target.value)}
-              className="sc-select-auto"
-            >
-              <option value="admin">Admin</option>
-              <option value="staff">Staff</option>
-              <option value="data_researcher">Data researcher</option>
-            </Form.Control>
-          </div>
-        );
-      },
-    },
-    {
-      Header: 'Discussion role',
-      accessor: 'discussion',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { apiStatus } = row.original;
-        return (
-          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
-            <Form.Control
-              as="select"
-              size="sm"
-              value={row.original.discussion}
-              onChange={e => updateOrgRoster(row.original.orgCode, row.index, 'discussion', e.target.value)}
-              className="sc-select-auto"
-            >
-              <option value="discussion_admin">Discussion admin</option>
-              <option value="moderator">Moderator</option>
-              <option value="none">None</option>
-            </Form.Control>
-          </div>
-        );
-      },
-    },
-    {
-      id: 'accountStatus',
-      Header: 'Account status',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { email, apiStatus } = row.original;
-        const trimmed = email.trim();
-        const { label, cls, icon } = emailStatusInfo(trimmed, apiStatus);
-        return (
-          <div className={`sc-team-cell sc-team-cell--nowrap${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
-            {apiStatus === 'checking'
-              ? <Spinner animation="border" size="sm" className="sc-spinner-sm" />
-              : (
-                <span className={`sc-email-status ${cls}`}>
-                  {icon && <span className="sc-email-status__icon">{icon}</span>}
-                  {label}
-                </span>
-              )}
-          </div>
-        );
-      },
-    },
-    {
-      id: 'actions',
-      Header: '',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const { apiStatus } = row.original;
-        return (
-          <div className={`sc-team-cell${apiStatus === 'not_found' ? ' sc-team-cell--err' : ''}`}>
-            <button
-              type="button"
-              onClick={() => removeOrgMember(row.original.orgCode, row.index)}
-              className="sc-team-remove"
-            >
-              ✕
-            </button>
-          </div>
-        );
-      },
-    },
-  ], [updateOrgRoster, removeOrgMember]);
-  /* eslint-enable react/no-unstable-nested-components, react/prop-types */
+  // ── Hooks for column definitions ───────────────────────────────────────────
+  const { courseRunColumns, renderCourseRunSubRow } = useCourseRunColumns(
+    updateRunOverride,
+    removeRow,
+    checkingRef,
+    validatedRef,
+  );
+  const teamColumns = useTeamColumns(updateOrgRoster, removeOrgMember);
 
   const handleNext = () => {
     onNext({
@@ -666,70 +343,26 @@ const StepConfigure = ({
     && teamInvalid === 0
     && teamChecking === 0;
 
-  // ── Tab definitions ────────────────────────────────────────────────────────
-  const TABS = [
-    { id: 'scheduling', label: 'Scheduling' },
-    { id: 'certs', label: 'Certificates' },
-    { id: 'gating', label: 'Lesson Gating', badge: gating.mode !== 'disabled' ? 'On' : null },
-  ];
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
 
-      {/* ── Shared settings card ── */}
-      <div className="sc-card">
-        <div className="sc-card-header">
-          <span className="sc-card-title">Shared settings</span>
-          <span className="sc-card-subtitle">Applied to all {rows.length} course runs</span>
-        </div>
-
-        {/* Tab bar */}
-        <div className="sc-tabs">
-          {TABS.map(t => (
-            <div
-              key={t.id}
-              role="tab"
-              tabIndex={0}
-              onClick={() => setTab(t.id)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setTab(t.id); } }}
-              className={`sc-tab${tab === t.id ? ' sc-tab--active' : ''}`}
-            >
-              {t.label}
-              {t.badge && (
-                <Badge variant="warning" pill className="sc-badge-xs">{t.badge}</Badge>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="sc-card-body">
-
-          {/* ── Scheduling tab ── */}
-          {tab === 'scheduling' && (
-            <SchedulingTab
-              sched={sched}
-              setSched={setSched}
-              runId={runId}
-              setRunId={setRunId}
-              schedErrs={schedErrs}
-              schedOkUI={schedOkUI}
-              runIdV={runIdV}
-            />
-          )}
-
-          {/* ── Certificates tab ── */}
-          {tab === 'certs' && (
-            <CertificatesTab certs={certs} setCerts={setCerts} />
-          )}
-
-          {/* ── Lesson Gating tab ── */}
-          {tab === 'gating' && (
-            <GatingTab gating={gating} setGating={setGating} />
-          )}
-
-        </div>
-      </div>
+      <SharedSettingsCard
+        rowCount={rows.length}
+        tab={tab}
+        setTab={setTab}
+        sched={sched}
+        setSched={setSched}
+        runId={runId}
+        setRunId={setRunId}
+        schedErrs={schedErrs}
+        schedOkUI={schedOkUI}
+        runIdV={runIdV}
+        certs={certs}
+        setCerts={setCerts}
+        gating={gating}
+        setGating={setGating}
+      />
 
       {/* ── Course runs card ── */}
       <div className="sc-card">
@@ -759,123 +392,35 @@ const StepConfigure = ({
           </div>
         </div>
 
-        {/* Per-org groups */}
         <div>
           {orgGroups.map(({
             orgCode, orgName, orgRows, orgErr,
-          }) => {
-            const isOpen = expandedOrg[orgCode] !== false;
-            const activeOrgTab = orgActiveTab[orgCode] || 'courses';
-            const orgConflictsKey = `${runId }:${ orgCode }:${ orgRows.map(
-              r => (conflicts[r.idx] || '') + (courseIdTooLong[r.idx] ? '!' : ''),
-            ).join(',')}`;
-            const orgInitialExpanded = Object.fromEntries(
-              orgRows.flatMap(r => (conflicts[r.idx] ? [[r.id, true]] : [])),
-            );
-            const orgRoster = getOrgRoster(orgCode);
-            const filledMembers = orgRoster.filter(r => r.email).length;
-            const coursesLabel = `Courses (${ orgRows.length })`;
-            const teamLabel = `Team & Access${ filledMembers > 0 ? ` (${ filledMembers })` : ''}`;
-
-            return (
-              <div key={orgCode} className="sc-org-group">
-                {/* Org header */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setExpandedOrg(p => ({ ...p, [orgCode]: !isOpen }))}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      setExpandedOrg(p => ({ ...p, [orgCode]: !isOpen }));
-                    }
-                  }}
-                  className={`sc-org-header${orgErr ? ' sc-org-header--err' : ''}`}
-                >
-                  <span className="sc-org-code">{orgName} ({orgCode})</span>
-                  <span className="sc-org-meta">{`${orgRows.length } course${ orgRows.length !== 1 ? 's' : ''}`}</span>
-                  {orgErr && (
-                    <Badge variant="danger" pill className="sc-badge-sm">conflict</Badge>
-                  )}
-                  {filledMembers > 0 && (
-                    <Badge variant="info" pill className="sc-badge-sm">{`${filledMembers } member${ filledMembers !== 1 ? 's' : ''}`}</Badge>
-                  )}
-                  <div className="sc-org-spacer" />
-                  <span className="sc-org-toggle-text">{isOpen ? '▲ collapse' : '▼ expand'}</span>
-                </div>
-
-                {isOpen && (
-                  <>
-                    {/* Per-org tab bar */}
-                    <div className="sc-org-tabs">
-                      {[{ id: 'courses', label: coursesLabel }, { id: 'team', label: teamLabel }].map(t => (
-                        <div
-                          key={t.id}
-                          role="tab"
-                          tabIndex={0}
-                          onClick={e => { e.stopPropagation(); setOrgActiveTab(p => ({ ...p, [orgCode]: t.id })); }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.stopPropagation();
-                              setOrgActiveTab(p => ({ ...p, [orgCode]: t.id }));
-                            }
-                          }}
-                          className={`sc-org-tab${activeOrgTab === t.id ? ' sc-org-tab--active' : ''}`}
-                        >
-                          {t.label}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* ── Courses tab ── */}
-                    {activeOrgTab === 'courses' && (
-                      <div className="bulk-rerun-course-table">
-                        <DataTable
-                          key={orgConflictsKey}
-                          isExpandable
-                          renderRowSubComponent={renderCourseRunSubRow}
-                          columns={courseRunColumns}
-                          data={orgRows.map(r => ({
-                            ...r,
-                            conflict: conflicts[r.idx],
-                            lenErr: courseIdTooLong[r.idx],
-                          }))}
-                          itemCount={orgRows.length}
-                          initialState={{ expanded: orgInitialExpanded }}
-                          initialTableOptions={{
-                            // eslint-disable-next-line react/prop-types
-                            getRowId: row => row.id,
-                            autoResetSelectedRows: false,
-                            autoResetExpanded: false,
-                          }}
-                        >
-                          <DataTable.Table isStriped={false} />
-                          <DataTable.EmptyTable content="No courses." />
-                        </DataTable>
-                      </div>
-                    )}
-
-                    {/* ── Team & Access tab ── */}
-                    {activeOrgTab === 'team' && (
-                      <TeamTab
-                        orgCode={orgCode}
-                        orgName={orgName}
-                        orgRoster={orgRoster}
-                        emailStatus={emailStatus}
-                        teamColumns={teamColumns}
-                        addOrgMember={addOrgMember}
-                        removeOp={removeOp}
-                        setRemoveOp={setRemoveOp}
-                        filledMembers={filledMembers}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-            );
-          })}
+          }) => (
+            <OrgAccordion
+              key={orgCode}
+              orgCode={orgCode}
+              orgName={orgName}
+              orgRows={orgRows}
+              orgErr={orgErr}
+              isOpen={expandedOrg[orgCode] !== false}
+              onToggle={() => setExpandedOrg(p => ({ ...p, [orgCode]: p[orgCode] === false }))}
+              activeOrgTab={orgActiveTab[orgCode] || 'courses'}
+              onTabChange={tabId => setOrgActiveTab(p => ({ ...p, [orgCode]: tabId }))}
+              courseRunColumns={courseRunColumns}
+              renderCourseRunSubRow={renderCourseRunSubRow}
+              conflicts={conflicts}
+              courseIdTooLong={courseIdTooLong}
+              orgRoster={getOrgRoster(orgCode)}
+              teamColumns={teamColumns}
+              emailStatus={emailStatus}
+              addOrgMember={addOrgMember}
+              removeOp={removeOp}
+              setRemoveOp={setRemoveOp}
+              runId={runId}
+            />
+          ))}
         </div>
 
-        {/* Table footer */}
         <div className={`sc-table-footer${(nHardConf > 0 || nLenErr > 0) && validated ? ' sc-table-footer--err' : ''}`}>
           <span className="sc-table-footer-note">
             All {rows.length} target keys validated. Run ID defaults to shared identifier. Target Run is the

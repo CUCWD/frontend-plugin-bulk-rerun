@@ -1,11 +1,13 @@
+@use '../../assets/scss/tokens' as t;
+
 // ── Design tokens (subset used by TeamTab) ────────────────────────────────────
-$sc-g300:      #C8C8C8;
-$sc-g500:      #6C757D;
-$sc-g700:      #454545;
-$sc-danger:    #C32D3A;
-$sc-danger-bg: #FDF0F1;
-$sc-success:   #178253;
-$sc-warning:   #856404;
+$sc-g300:      t.$bulk-g300;
+$sc-g500:      t.$bulk-g500;
+$sc-g700:      t.$bulk-g700;
+$sc-danger:    t.$bulk-danger;
+$sc-danger-bg: t.$bulk-danger-bg;
+$sc-success:   t.$bulk-success;
+$sc-warning:   t.$bulk-warning;
 
 // ── Team section ──────────────────────────────────────────────────────────────
 .sc-team-content { padding: 16px 20px; }
