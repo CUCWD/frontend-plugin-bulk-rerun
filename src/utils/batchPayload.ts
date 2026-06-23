@@ -58,9 +58,10 @@ export function buildBatchPayload(cfg: any, isDryRun = false) {
       remove_provisioner_after: removeOp,
     },
     team_members: Object.entries(orgRosters)
-      .flatMap(([, members]: [string, any[]]) => members
+      .flatMap(([org, members]: [string, any[]]) => members
         .filter((m: any) => m.email && m.email.includes('@'))
         .map((m: any) => ({
+          org,
           email: m.email,
           studio_role: m.studio,
           discussion_role: m.discussion,
