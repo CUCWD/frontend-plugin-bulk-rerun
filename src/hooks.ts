@@ -27,13 +27,12 @@ export type ProgramApiItem = {
   courseRunKeys: string[];
 };
 
-const studioUrl    = () => getConfig().STUDIO_BASE_URL    as string;
+const studioUrl = () => getConfig().STUDIO_BASE_URL as string;
 const discoveryUrl = () => getConfig().DISCOVERY_API_BASE_URL as string;
 const validateUrl = () => `${studioUrl()}/api/bulk-rerun/validate/`;
-const batchesUrl  = () => `${studioUrl()}/api/bulk-rerun/batches/`;
-const batchUrl    = (id: string) => `${batchesUrl()}${id}/`;
-const logsUrl     = (jobId: string, since?: number) =>
-  `${studioUrl()}/api/bulk-rerun/jobs/${jobId}/logs/${since ? `?since=${since}` : ''}`;
+const batchesUrl = () => `${studioUrl()}/api/bulk-rerun/batches/`;
+const batchUrl = (id: string) => `${batchesUrl()}${id}/`;
+const logsUrl = (jobId: string, since?: number) => `${studioUrl()}/api/bulk-rerun/jobs/${jobId}/logs/${since ? `?since=${since}` : ''}`;
 
 export const useValidateCourseKeys = () => useMutation({
   mutationFn: async (keys: string[]) => {
@@ -63,8 +62,8 @@ export const useCancelBatch = () => useMutation({
 // Fetched once on mount (no polling) — used by StepProgress to restore in-flight
 // jobs after a page refresh or when navigating from a different device/tab.
 export const useRunningBatches = (statusFilter = 'running,pending') => useQuery({
-  queryKey:  ['bulk-rerun-batches-running', statusFilter],
-  queryFn:   async () => {
+  queryKey: ['bulk-rerun-batches-running', statusFilter],
+  queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient()
       .get(`${batchesUrl()}?status=${encodeURIComponent(statusFilter)}`);
     return data as any[];
@@ -75,8 +74,8 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
 });
 
 export const useBatch = (batchId: string | null) => useQuery({
-  queryKey:  ['bulk-rerun-batch', batchId],
-  queryFn:   async () => {
+  queryKey: ['bulk-rerun-batch', batchId],
+  queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId!));
     return data;
   },
@@ -84,26 +83,25 @@ export const useBatch = (batchId: string | null) => useQuery({
   // Stop retrying on 404 — the batch was rolled back (e.g. task failed inside
   // an atomic block with CELERY_ALWAYS_EAGER) and will never appear.
   retry: (failureCount: number, error: any) => {
-    if (error?.response?.status === 404) return false;
+    if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
   refetchInterval: (query: any) => {
-    if (['succeeded', 'failed', 'partial'].includes(query?.state?.data?.status)) return false;
-    if (query?.state?.status === 'error') return false;
+    if (['succeeded', 'failed', 'partial'].includes(query?.state?.data?.status)) { return false; }
+    if (query?.state?.status === 'error') { return false; }
     return 2000;
   },
 });
 
-const coursesUrl = (search = '') =>
-  `${studioUrl()}/api/contentstore/v1/home/courses${search}`;
+const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;
 
 // Active programs from course-discovery — GET DISCOVERY_API_BASE_URL/api/v1/programs/?status=active
 // Returns [] when DISCOVERY_API_BASE_URL is not configured.
 export const usePrograms = (options?: { enabled?: boolean }) => useQuery({
   queryKey: ['bulk-rerun-programs'],
-  queryFn:  async (): Promise<ProgramApiItem[]> => {
+  queryFn: async (): Promise<ProgramApiItem[]> => {
     const base = discoveryUrl();
-    if (!base) return [];
+    if (!base) { return []; }
     const { data } = await getAuthenticatedHttpClient()
       .get(`${base}/api/v1/programs/?status=active&page_size=50`);
     const normalised = camelCaseObject(data);
@@ -111,9 +109,7 @@ export const usePrograms = (options?: { enabled?: boolean }) => useQuery({
     return results.map((p: any) => ({
       uuid: p.uuid,
       title: p.title,
-      courseRunKeys: (p.courses ?? []).flatMap((c: any) =>
-        (c.courseRuns ?? []).map((r: any) => r.key)
-      ),
+      courseRunKeys: (p.courses ?? []).flatMap((c: any) => (c.courseRuns ?? []).map((r: any) => r.key)),
     }));
   },
   enabled: options?.enabled ?? true,
@@ -142,7 +138,7 @@ export const useOrgs = () => useQuery({
 
 export const useCourses = (search = '', options?: { enabled?: boolean }) => useQuery({
   queryKey: ['bulk-rerun-courses', search],
-  queryFn:  async (): Promise<CourseApiItem[]> => {
+  queryFn: async (): Promise<CourseApiItem[]> => {
     // Fetch up to 500 courses; for very large installs add pagination later.
     const { data } = await getAuthenticatedHttpClient()
       .get(coursesUrl('?page_size=500'));
@@ -169,7 +165,7 @@ export const useSearchEmails = () => useMutation({
 
 export const useJobLogs = (jobId: string | null) => useQuery({
   queryKey: ['bulk-rerun-job-logs', jobId],
-  queryFn:  async () => {
+  queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient()
       .get(logsUrl(jobId!));
     return data;
@@ -177,7 +173,7 @@ export const useJobLogs = (jobId: string | null) => useQuery({
   enabled: !!jobId,
   // TanStack Query v5: refetchInterval receives the query object, not data directly.
   refetchInterval: (query: any) => {
-    if (['succeeded', 'failed'].includes(query?.state?.data?.job_status)) return false;
+    if (['succeeded', 'failed'].includes(query?.state?.data?.job_status)) { return false; }
     return 2000;
   },
 });

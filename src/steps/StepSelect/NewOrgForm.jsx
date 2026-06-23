@@ -1,6 +1,6 @@
 // Draft new-org form for StepSelect using Paragon Form and Add/Delete icon buttons.
 // NOT currently imported — new-org creation is not active in the DEMO build.
-import React from 'react';
+import PropTypes from 'prop-types';
 import {
   Form, Button, Icon, IconButton,
 } from '@openedx/paragon';
@@ -50,6 +50,14 @@ const NewOrgForm = ({ entries, onChange }) => {
       </Button>
     </div>
   );
+};
+
+NewOrgForm.propTypes = {
+  entries: PropTypes.arrayOf(PropTypes.shape({
+    code: PropTypes.string,
+    name: PropTypes.string,
+  })).isRequired,
+  onChange: PropTypes.func.isRequired,
 };
 
 export default NewOrgForm;

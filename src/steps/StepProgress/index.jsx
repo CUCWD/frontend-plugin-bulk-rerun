@@ -5,7 +5,10 @@
 //
 // On mount, useRunningBatches fetches the caller's in-progress batches from the server
 // and adds any that aren't already tracked (recovering from page refresh / cross-device).
-import { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  useState, useCallback, useEffect, useRef,
+} from 'react';
+import PropTypes from 'prop-types';
 import { Button, Badge, Form } from '@openedx/paragon';
 
 import { useCreateBatch, useCancelBatch, useRunningBatches } from '../../hooks';
@@ -16,10 +19,9 @@ import './index.scss';
 
 const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_e) { return iso || ''; } };
 
-export default function StepProgress({ onGoWizard, onSaveHistory }) {
+const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   const {
     activeJobs,
-    addActiveJob,
     addActiveJobs,
     removeActiveJob,
     promoteJobToReal,
@@ -47,7 +49,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
   const hasRecoveredRef = useRef(false);
 
   useEffect(() => {
-    if (!runningBatches || hasRecoveredRef.current) return;
+    if (!runningBatches || hasRecoveredRef.current) { return; }
     hasRecoveredRef.current = true;
 
     const existingBatchIds = new Set(activeJobs.map(j => j.batchId).filter(Boolean));
@@ -56,13 +58,13 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
       .map(batch => ({
         id: `recovered-${batch.id}`,
         cfg: { ...batch.config_json, runId: batch.config_json.runId || batch.target_run },
-        isDry:     batch.is_dry_run,
-        batchId:   batch.id,
+        isDry: batch.is_dry_run,
+        batchId: batch.id,
         isPending: false,
         createdAt: batch.created_at,
         createdBy: batch.created_by_username || '',
       }));
-    if (toRecover.length > 0) addActiveJobs(toRecover);
+    if (toRecover.length > 0) { addActiveJobs(toRecover); }
   // activeJobs is intentionally read as a closure snapshot at first-recovery time.
   // hasRecoveredRef guards against re-running as activeJobs mutates.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +109,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
       {/* Filter bar */}
       <div className="sp-filter-bar">
         <span className="sp-filter-count">
-          {activeJobs.length + ' active run' + (activeJobs.length !== 1 ? 's' : '')}
+          {`${activeJobs.length } active run${ activeJobs.length !== 1 ? 's' : ''}`}
         </span>
         <div className="sp-filter-right">
           <span className="sp-filter-label">Filter by user:</span>
@@ -118,10 +120,10 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
             onChange={e => setJobUserFilter(e.target.value)}
             className="sp-filter-select"
           >
-            <option value="">{'All users (' + activeJobs.length + ')'}</option>
+            <option value="">{`All users (${ activeJobs.length })`}</option>
             {uniqueUsers.map(u => (
               <option key={u} value={u}>
-                {u + ' (' + activeJobs.filter(j => j.createdBy === u).length + ')'}
+                {`${u } (${ activeJobs.filter(j => j.createdBy === u).length })`}
               </option>
             ))}
           </Form.Control>
@@ -135,24 +137,35 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
         <div className="sp-no-match">
           {'No active runs for '}
           <strong>{jobUserFilter}</strong>
-          {'.'}
+          .
           <Button variant="tertiary" size="sm" onClick={() => setJobUserFilter('')} style={{ marginLeft: 8 }}>Show all</Button>
         </div>
       )}
 
       {activeJobs.map(job => {
-        if (jobUserFilter && job.createdBy !== jobUserFilter) return null;
+        if (jobUserFilter && job.createdBy !== jobUserFilter) { return null; }
         const isExpanded = jobsExpanded[String(job.id)] !== false;
+        const jobIdentifier = (job.batchId ? job.batchId : job.id.replace(/^recovered-/, ''))
+          .replace(/-/g, '')
+          .slice(0, 8)
+          .toUpperCase();
 
         return (
           <div key={job.id} className="sp-job-card">
             {/* Collapsible job header */}
-            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
+              role="button"
+              tabIndex={0}
               className={`sp-job-header sp-job-header--${isExpanded ? 'expanded' : 'collapsed'}`}
               onClick={() => toggleJobExpanded(job.id)}
+              onKeyDown={e => {
+                if (e.target !== e.currentTarget) { return; }
+                if (e.key === 'Enter' || e.key === ' ') {
+                  toggleJobExpanded(job.id);
+                }
+              }}
             >
-              <span className="sp-job-id">{'BR-' + (job.batchId ? job.batchId : job.id.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase()}</span>
+              <span className="sp-job-id">{`BR-${jobIdentifier}`}</span>
               {job.isDry && <Badge variant="warning" pill>DRY RUN</Badge>}
               <span className="sp-job-meta">
                 <span className="sp-job-meta-date">{fmtDate(job.createdAt)}</span>
@@ -176,7 +189,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
                   onClick={e => {
                     e.stopPropagation();
                     // eslint-disable-next-line no-alert
-                    if (!window.confirm('Stop this bulk rerun job? All pending and running courses will be marked as failed.')) return;
+                    if (!window.confirm('Stop this bulk rerun job? All pending and running courses will be marked as failed.')) { return; }
                     cancelBatch.mutate(job.batchId);
                   }}
                 >
@@ -201,7 +214,7 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
             */}
             <div className="sp-job-body" style={{ display: isExpanded ? 'block' : 'none' }}>
               <JobProgress
-                key={job.id + '-' + job.isDry}
+                key={`${job.id }-${ job.isDry}`}
                 cfg={job.cfg}
                 jobId={job.id}
                 batchId={job.batchId ?? null}
@@ -220,4 +233,11 @@ export default function StepProgress({ onGoWizard, onSaveHistory }) {
       })}
     </div>
   );
-}
+};
+
+StepProgress.propTypes = {
+  onGoWizard: PropTypes.func.isRequired,
+  onSaveHistory: PropTypes.func.isRequired,
+};
+
+export default StepProgress;

@@ -1,24 +1,39 @@
 // Draft org accordion for StepReview using Paragon Collapsible.
 // NOT currently imported — the accordion is rendered inline in StepReview/index.jsx.
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Collapsible, Badge } from '@openedx/paragon';
 
 import { makeKey } from '../../utils/courseKeys';
 import { THEME } from '../../theme';
 
 const srcHead = {
-  padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11,
-  color: THEME.srcText, background: THEME.srcHeadBg, whiteSpace: 'nowrap',
+  padding: '8px 10px',
+  textAlign: 'left',
+  fontWeight: 600,
+  fontSize: 11,
+  color: THEME.srcText,
+  background: THEME.srcHeadBg,
+  whiteSpace: 'nowrap',
   borderBottom: `2px solid ${THEME.srcText}`,
 };
 const tgtHead = {
-  padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11,
-  color: THEME.tgtText, background: THEME.tgtHeadBg, whiteSpace: 'nowrap',
+  padding: '8px 10px',
+  textAlign: 'left',
+  fontWeight: 600,
+  fontSize: 11,
+  color: THEME.tgtText,
+  background: THEME.tgtHeadBg,
+  whiteSpace: 'nowrap',
   borderBottom: `2px solid ${THEME.tgtText}`,
 };
 const neutralHead = {
-  padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 11,
-  color: '#454545', background: THEME.headBg,
+  padding: '8px 10px',
+  textAlign: 'left',
+  fontWeight: 600,
+  fontSize: 11,
+  color: '#454545',
+  background: THEME.headBg,
   borderBottom: `2px solid ${THEME.border}`,
 };
 
@@ -63,5 +78,19 @@ const OrgAccordion = ({ org, rows }) => (
     </div>
   </Collapsible>
 );
+
+OrgAccordion.propTypes = {
+  org: PropTypes.string.isRequired,
+  rows: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string,
+    org: PropTypes.string.isRequired,
+    num: PropTypes.string.isRequired,
+    run: PropTypes.string.isRequired,
+    srcOrg: PropTypes.string.isRequired,
+    srcNum: PropTypes.string.isRequired,
+    srcRun: PropTypes.string.isRequired,
+  })).isRequired,
+};
 
 export default OrgAccordion;

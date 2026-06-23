@@ -1,13 +1,13 @@
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$ss-brand:     #006daa;
-$ss-brand-lt:  #deeef8;
-$ss-brand-xlt: #eef6fb;
+$ss-brand:     #006DAA;
+$ss-brand-lt:  #DEEEF8;
+$ss-brand-xlt: #EEF6FB;
 $ss-success:   #178253;
-$ss-danger:    #c32d3a;
-$ss-g50:       #f8f9fa;
-$ss-g500:      #6c757d;
-$ss-g900:      #1f2937;
-$ss-border:    #dee2e6;
+$ss-danger:    #C32D3A;
+$ss-g50:       #F8F9FA;
+$ss-g500:      #6C757D;
+$ss-g900:      #1F2937;
+$ss-border:    #DEE2E6;
 $ss-mono:      "SFMono-Regular", "Courier New", monospace;
 
 // ── Card header ───────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
 .ss-banner {
   margin: 10px 20px 0;
   background: $ss-brand-lt;
-  border: 1px solid #aad4ef;
+  border: 1px solid #AAD4EF;
   border-radius: 4px;
   padding: 7px 14px;
   display: flex;
@@ -125,7 +125,7 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
   font-size: 14px;
 
   &--sm {
-    padding: 0.5rem 0;
+    padding: .5rem 0;
     color: $ss-danger;
     font-size: 14px;
   }
@@ -155,7 +155,7 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
 // ── Cell content helpers ──────────────────────────────────────────────────────
 .ss-org-badge {
   display: inline-block;
-  background: #e8f5e9;
+  background: #E8F5E9;
   color: $ss-success;
   padding: 2px 7px;
   border-radius: 4px;
@@ -174,9 +174,14 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
   border-radius: 12px;
 }
 
-.ss-name         { font-size: 15px; }
-.ss-name--sel    { font-weight: 600; }
-.ss-num          { font-family: $ss-mono; font-size: 15px; }
+.ss-name { font-size: 15px; }
+
+.ss-name--sel { font-weight: 600; }
+
+.ss-num {
+  font-family: $ss-mono;
+  font-size: 15px;
+}
 
 // ── Table footer ──────────────────────────────────────────────────────────────
 .ss-table-footer {
@@ -198,5 +203,13 @@ $ss-mono:      "SFMono-Regular", "Courier New", monospace;
   background: $ss-g50;
 }
 
-.ss-action-hint   { font-size: 14px; color: $ss-g500; }
-.ss-action-active { font-size: 14px; font-weight: 500; color: $ss-brand; }
+.ss-action-hint {
+  font-size: 14px;
+  color: $ss-g500;
+}
+
+.ss-action-active {
+  font-size: 14px;
+  font-weight: 500;
+  color: $ss-brand;
+}

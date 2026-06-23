@@ -2,18 +2,56 @@
 // Each row can be toggled open to reveal a dark log panel with colour-coded lines
 // (ok/info/warn/error) and a blue target-key strip for course items.
 import { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { Spinner } from '@openedx/paragon';
 import { makeKey } from '../../utils/courseKeys';
 
 const TARGET_COLS = [
-  { label: 'TARGET ORG',      key: 'org' },
+  { label: 'TARGET ORG', key: 'org' },
   { label: 'TARGET COURSE #', key: 'num' },
-  { label: 'TARGET RUN',      key: 'run' },
+  { label: 'TARGET RUN', key: 'run' },
 ];
 
-const LOG_CLS = { ok: 'pi-log-ok', info: 'pi-log-info', warn: 'pi-log-warn', error: 'pi-log-error', err: 'pi-log-error' };
+const LOG_CLS = {
+  ok: 'pi-log-ok', info: 'pi-log-info', warn: 'pi-log-warn', error: 'pi-log-error', err: 'pi-log-error',
+};
 
-function PhaseItem({ item }) {
+const LOG_PROP_TYPE = PropTypes.shape({
+  lv: PropTypes.string,
+  ts: PropTypes.string,
+  msg: PropTypes.string,
+});
+
+const COURSE_ROW_PROP_TYPE = PropTypes.shape({
+  org: PropTypes.string,
+  orgName: PropTypes.string,
+  name: PropTypes.string,
+  num: PropTypes.string,
+  run: PropTypes.string,
+  srcOrg: PropTypes.string,
+  srcNum: PropTypes.string,
+  srcRun: PropTypes.string,
+});
+
+const PHASE_ITEM_PROP_TYPE = PropTypes.shape({
+  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  status: PropTypes.string.isRequired,
+  elapsed: PropTypes.string,
+  logs: PropTypes.arrayOf(LOG_PROP_TYPE).isRequired,
+  r: COURSE_ROW_PROP_TYPE,
+  name: PropTypes.string,
+  code: PropTypes.string,
+  org: PropTypes.string,
+});
+
+const STATUS_LABELS = {
+  success: 'Complete',
+  running: 'Running',
+  failed: 'Failed',
+  pending: 'Pending',
+};
+
+const PhaseItem = ({ item }) => {
   const [isOpen, setIsOpen] = useState(false);
   const autoOpenedRef = useRef(false);
   const [liveElapsed, setLiveElapsed] = useState('');
@@ -34,7 +72,7 @@ function PhaseItem({ item }) {
   // arrives (every ~2 s poll). This keeps the live counter accurate without
   // restarting the interval and causing a visual jump.
   useEffect(() => {
-    if (item.status !== 'running') return;
+    if (item.status !== 'running') { return; }
     const serverSec = parseFloat(item.elapsed) || 0;
     if (serverSec > 0) {
       baseTimeRef.current = Date.now() - serverSec * 1000;
@@ -46,9 +84,9 @@ function PhaseItem({ item }) {
   useEffect(() => {
     clearInterval(intervalRef.current);
     if (item.status === 'running') {
-      if (!baseTimeRef.current) baseTimeRef.current = Date.now();
+      if (!baseTimeRef.current) { baseTimeRef.current = Date.now(); }
       intervalRef.current = setInterval(() => {
-        setLiveElapsed(((Date.now() - baseTimeRef.current) / 1000).toFixed(0) + 's');
+        setLiveElapsed(`${((Date.now() - baseTimeRef.current) / 1000).toFixed(0) }s`);
       }, 1000);
     } else {
       baseTimeRef.current = null;
@@ -61,9 +99,24 @@ function PhaseItem({ item }) {
     ? (liveElapsed || item.elapsed || '')
     : (item.elapsed || '');
 
-  const label      = item.r ? item.r.name : (item.name || item.code || item.org || '');
-  const sublabel   = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : (item.code || '');
-  const statusMod  = ` pi-status--${item.status}`;
+  const label = item.r ? item.r.name : (item.name || item.code || item.org || '');
+  const sublabel = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : (item.code || '');
+  const statusMod = ` pi-status--${item.status}`;
+  let statusIcon = '○';
+  if (item.status === 'running') {
+    statusIcon = (
+      <Spinner
+        animation="border"
+        size="sm"
+        style={{ width: 12, height: 12, borderWidth: '0.15em' }}
+      />
+    );
+  } else if (item.status === 'success') {
+    statusIcon = '✓';
+  } else if (item.status === 'failed') {
+    statusIcon = '✗';
+  }
+  const statusLabel = STATUS_LABELS[item.status] || 'Pending';
 
   return (
     <div className="pi-item">
@@ -72,12 +125,9 @@ function PhaseItem({ item }) {
         <div className="pi-label">{label}</div>
         {sublabel && <div className="pi-sublabel">{sublabel}</div>}
         <div className={`pi-status${statusMod}`}>
-          {item.status === 'running'
-            ? <Spinner animation="border" size="sm" style={{ width: 12, height: 12, borderWidth: '0.15em' }} />
-            : item.status === 'success' ? '✓'
-            : item.status === 'failed'  ? '✗'
-            : '○'}
-          {' '}{item.status === 'success' ? 'Complete' : item.status === 'running' ? 'Running' : item.status === 'failed' ? 'Failed' : 'Pending'}
+          {statusIcon}
+          {' '}
+          {statusLabel}
         </div>
         <div className="pi-elapsed">{displayElapsed}</div>
         <span className="pi-toggle">{isOpen ? '▲' : '▼'}</span>
@@ -97,8 +147,8 @@ function PhaseItem({ item }) {
           )}
           <div className={`pi-log-panel${item.r ? '' : ' pi-log-panel--solo'}`}>
             {item.logs.length === 0 && <div className="pi-log-waiting">Waiting to start...</div>}
-            {item.logs.map((l, x) => (
-              <div key={x} className={LOG_CLS[l.lv] || 'pi-log-info'}>
+            {item.logs.map(l => (
+              <div key={`${l.ts}-${l.lv}-${l.msg}`} className={LOG_CLS[l.lv] || 'pi-log-info'}>
                 [{l.ts}] {l.msg}
               </div>
             ))}
@@ -108,12 +158,20 @@ function PhaseItem({ item }) {
       )}
     </div>
   );
-}
+};
 
-export default function PhaseItemRows({ items }) {
-  return (
-    <>
-      {items.map(item => <PhaseItem key={item.id} item={item} />)}
-    </>
-  );
-}
+PhaseItem.propTypes = {
+  item: PHASE_ITEM_PROP_TYPE.isRequired,
+};
+
+const PhaseItemRows = ({ items }) => (
+  <>
+    {items.map(item => <PhaseItem key={item.id} item={item} />)}
+  </>
+);
+
+PhaseItemRows.propTypes = {
+  items: PropTypes.arrayOf(PHASE_ITEM_PROP_TYPE).isRequired,
+};
+
+export default PhaseItemRows;

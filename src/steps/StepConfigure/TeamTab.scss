@@ -1,9 +1,9 @@
 // ── Design tokens (subset used by TeamTab) ────────────────────────────────────
-$sc-g300:      #c8c8c8;
-$sc-g500:      #6c757d;
+$sc-g300:      #C8C8C8;
+$sc-g500:      #6C757D;
 $sc-g700:      #454545;
-$sc-danger:    #c32d3a;
-$sc-danger-bg: #fdf0f1;
+$sc-danger:    #C32D3A;
+$sc-danger-bg: #FDF0F1;
 $sc-success:   #178253;
 $sc-warning:   #856404;
 
@@ -18,16 +18,24 @@ $sc-warning:   #856404;
   gap: 8px;
 }
 
-.sc-team-empty { font-size: 14px; color: $sc-g500; font-style: italic; }
+.sc-team-empty {
+  font-size: 14px;
+  color: $sc-g500;
+  font-style: italic;
+}
 
-.sc-car-note { margin-top: 6px; font-size: 15px; color: $sc-g700; }
+.sc-car-note {
+  margin-top: 6px;
+  font-size: 15px;
+  color: $sc-g700;
+}
 
 // ── Team DataTable cells ──────────────────────────────────────────────────────
 .sc-team-cell {
   padding: 6px 8px;
   display: block;
   font-size: 15px;
-  background: #fff;
+  background: #FFFFFF;
 
   &--err    { background: $sc-danger-bg; }
   &--nowrap { white-space: nowrap; }

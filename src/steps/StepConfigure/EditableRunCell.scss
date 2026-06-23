@@ -3,38 +3,38 @@
   box-sizing: border-box;
   border: 1px solid transparent;
   border-radius: 3px;
-  padding: 0px 6px;
+  padding: 0 6px;
   font-size: 15px;
-  font-family: "SFMono-Regular", "Courier New", monospace;
-  color: #1f2937;
+  font-family: SFMono-Regular, "Courier New", monospace;
+  color: #1F2937;
   background: transparent;
   outline: none;
   box-shadow: none;
-  transition: border 0.12s, box-shadow 0.12s;
+  transition: border .12s, box-shadow .12s;
 
   // When expanded on focus, the input uses position:absolute (set via inline style)
   // to break out of table-layout:fixed clipping and overlay adjacent cells.
   &--expanded {
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgb(0 0 0 / .15);
   }
 
   &:focus {
-    border-color: #006daa;
-    background: #fff;
-    box-shadow: 0 0 0 2px #deeef8;
+    border-color: #006DAA;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 2px #DEEEF8;
   }
 
   &.has-error {
-    border-color: #c32d3a;
-    color: #c32d3a;
-    background: #fdf0f1;
+    border-color: #C32D3A;
+    color: #C32D3A;
+    background: #FDF0F1;
     border-width: 2px;
 
     &:focus {
-      border-color: #c32d3a;
-      background: #fff;
-      box-shadow: 0 0 0 2px #fdf0f1;
+      border-color: #C32D3A;
+      background: #FFFFFF;
+      box-shadow: 0 0 0 2px #FDF0F1;
     }
   }
 }

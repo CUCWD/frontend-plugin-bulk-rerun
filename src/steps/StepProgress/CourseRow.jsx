@@ -2,16 +2,17 @@
 // Uses Paragon Collapsible for expand/collapse. NOT currently imported —
 // the active row rendering is handled by PhaseItemRows.jsx inside JobProgress.jsx.
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Collapsible, Badge, Spinner } from '@openedx/paragon';
 
 import { useJobLogs } from '../../hooks';
 
 const STATUS_BADGE = {
-  pending:    { variant: 'light',   label: 'Pending' },
-  running:    { variant: 'primary', label: 'Running' },
-  succeeded:  { variant: 'success', label: 'Done' },
-  failed:     { variant: 'danger',  label: 'Failed' },
-  skipped:    { variant: 'warning', label: 'Skipped' },
+  pending: { variant: 'light', label: 'Pending' },
+  running: { variant: 'primary', label: 'Running' },
+  succeeded: { variant: 'success', label: 'Done' },
+  failed: { variant: 'danger', label: 'Failed' },
+  skipped: { variant: 'warning', label: 'Skipped' },
 };
 
 const CourseRow = ({ job }) => {
@@ -34,7 +35,12 @@ const CourseRow = ({ job }) => {
       onToggle={setOpen}
       className="mb-1"
     >
-      <div className="bg-dark text-light p-3 rounded" style={{ fontFamily: 'monospace', fontSize: 12, maxHeight: 300, overflowY: 'auto' }}>
+      <div
+        className="bg-dark text-light p-3 rounded"
+        style={{
+          fontFamily: 'monospace', fontSize: 12, maxHeight: 300, overflowY: 'auto',
+        }}
+      >
         {logs?.entries?.length
           ? logs.entries.map((e, i) => (
             // eslint-disable-next-line react/no-array-index-key
@@ -47,6 +53,14 @@ const CourseRow = ({ job }) => {
       </div>
     </Collapsible>
   );
+};
+
+CourseRow.propTypes = {
+  job: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    status: PropTypes.string.isRequired,
+    target_course_key: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 export default CourseRow;

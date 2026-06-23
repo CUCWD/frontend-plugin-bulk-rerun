@@ -1,20 +1,20 @@
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$sr-brand:      #006daa;
-$sr-brand-lt:   #deeef8;
-$sr-brand-xlt:  #eef6fb;
+$sr-brand:      #006DAA;
+$sr-brand-lt:   #DEEEF8;
+$sr-brand-xlt:  #EEF6FB;
 $sr-success:    #178253;
-$sr-success-bg: #d4edda;
-$sr-danger:     #c32d3a;
-$sr-danger-bg:  #fdf0f1;
-$sr-danger-bdr: #f1aeb5;
+$sr-success-bg: #D4EDDA;
+$sr-danger:     #C32D3A;
+$sr-danger-bg:  #FDF0F1;
+$sr-danger-bdr: #F1AEB5;
 $sr-warning:    #856404;
-$sr-warning-bdr:#ffc107;
-$sr-g50:        #f8f9fa;
-$sr-g500:       #6c757d;
+$sr-warning-bdr: #FFC107;
+$sr-g50:        #F8F9FA;
+$sr-g500:       #6C757D;
 $sr-g700:       #454545;
-$sr-g900:       #1f2937;
-$sr-border:     #dee2e6;
-$sr-white:      #fff;
+$sr-g900:       #1F2937;
+$sr-border:     #DEE2E6;
+$sr-white:      #FFFFFF;
 $sr-mono:       "SFMono-Regular", "Courier New", monospace;
 
 // ── Alert extras ──────────────────────────────────────────────────────────────
@@ -29,8 +29,15 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   }
 }
 
-.sr-alert-title { display: block; margin-bottom: 4px; }
-.sr-alert-title--sm { display: block; margin-bottom: 2px; }
+.sr-alert-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sr-alert-title--sm {
+  display: block;
+  margin-bottom: 2px;
+}
 
 // ── Execution mode panel ───────────────────────────────────────────────────────
 .sr-exec-panel {
@@ -161,7 +168,10 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   color: $sr-g700;
 }
 
-.sr-accordion-btns { display: flex; gap: 8px; }
+.sr-accordion-btns {
+  display: flex;
+  gap: 8px;
+}
 
 .sr-org-section { border-bottom: 1px solid $sr-border; }
 
@@ -176,7 +186,11 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   transition: opacity .12s;
 
   &:hover { opacity: .85; }
-  &--error { background: $sr-danger-bg; border-left-color: $sr-danger; }
+
+  &--error {
+    background: $sr-danger-bg;
+    border-left-color: $sr-danger;
+  }
 }
 
 .sr-org-dot {
@@ -184,7 +198,7 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   height: 20px;
   border-radius: 50%;
   background: $sr-brand;
-  color: #fff;
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -219,13 +233,24 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
 .sr-runs-table-wrap {
   overflow-x: auto;
 
-  table { table-layout: fixed; width: 100%; }
+  table {
+    table-layout: fixed;
+    width: 100%;
+  }
 
-  .pgn__data-table td          { padding: 0 !important; height: 1px; vertical-align: middle; }
-  .pgn__data-table-row td      { border-bottom: 1px solid $sr-border; }
+  .pgn__data-table td {
+    padding: 0 !important;
+    height: 1px;
+    vertical-align: middle;
+  }
+
+  .pgn__data-table-row td { border-bottom: 1px solid $sr-border; }
 
   // height: 100% on block children works when the parent td has height: 1px.
-  .sr-cell { height: 100%; align-content: center; }
+  .sr-cell {
+    height: 100%;
+    align-content: center;
+  }
 
   .pgn__data-table thead {
     th:nth-child(1) { width: 48px; }
@@ -276,25 +301,53 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
     background: $sr-white;
   }
 
-  &--src      { background: #f4fbf6; color: $sr-g700; white-space: normal; word-break: break-word; }
-  &--src-mono { background: #f4fbf6; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: normal; word-break: break-all; }
-  &--tgt-mono { background: $sr-brand-xlt; font-family: $sr-mono; font-size: 15px; color: $sr-g700; white-space: normal; word-break: break-all; }
+  &--src {
+    background: #F4FBF6;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-word;
+  }
 
-  &--exists   { background: #fff5f5; }
-  &--conflict { background: #fffbf0; }
+  &--src-mono {
+    background: #F4FBF6;
+    font-family: $sr-mono;
+    font-size: 15px;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  &--tgt-mono {
+    background: $sr-brand-xlt;
+    font-family: $sr-mono;
+    font-size: 15px;
+    color: $sr-g700;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  &--exists   { background: #FFF5F5; }
+  &--conflict { background: #FFFBF0; }
 
   &--exists.sr-cell--indicator   { border-left-color: $sr-danger; }
   &--conflict.sr-cell--indicator { border-left-color: $sr-warning-bdr; }
 }
 
-.sr-conflict-icon { cursor: help; font-size: 15px; }
-.sr-ok-check      { color: $sr-success; font-size: 14px; }
+.sr-conflict-icon {
+  cursor: help;
+  font-size: 15px;
+}
+
+.sr-ok-check {
+  color: $sr-success;
+  font-size: 14px;
+}
 
 // ── OrgRoleSummary ─────────────────────────────────────────────────────────────
 .sr-team-strip {
   padding: 10px 16px;
   border-top: 1px solid $sr-border;
-  background: #f9fafb;
+  background: #F9FAFB;
 }
 
 .sr-team-label {
@@ -306,7 +359,11 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   margin-bottom: 8px;
 }
 
-.sr-member-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-member-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .sr-member-pill {
   display: flex;
@@ -319,7 +376,10 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   font-size: 14px;
 }
 
-.sr-member-email { color: $sr-g900; font-weight: 500; }
+.sr-member-email {
+  color: $sr-g900;
+  font-weight: 500;
+}
 
 .sr-role-badge {
   display: inline-block;
@@ -329,8 +389,15 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   font-weight: 600;
   line-height: 1.5;
 
-  &--studio { background: $sr-brand-lt; color: $sr-brand; }
-  &--disc   { background: #e8f7fc; color: #055160; }
+  &--studio {
+    background: $sr-brand-lt;
+    color: $sr-brand;
+  }
+
+  &--disc {
+    background: #E8F7FC;
+    color: #055160;
+  }
 }
 
 // ── Submit error / action bar ──────────────────────────────────────────────────
@@ -340,7 +407,11 @@ $sr-mono:       "SFMono-Regular", "Courier New", monospace;
   align-items: center;
 }
 
-.sr-action-right { display: flex; gap: 10px; align-items: center; }
+.sr-action-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
 
 .sr-fix-btn {
   color: $sr-danger !important;

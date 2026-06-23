@@ -2,14 +2,15 @@
 // NOT currently imported — the active phase rendering is split across
 // PhaseHeader.jsx and PhaseItemRows.jsx, both used by JobProgress.jsx.
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Badge, ProgressBar } from '@openedx/paragon';
 
 const PHASE_LABELS = {
-  course_creation:  'Course creation',
-  certificate:      'Certificates',
-  team_access:      'Team access',
-  discovery_sync:   'Discovery sync',
-  gating:           'Gating',
+  course_creation: 'Course creation',
+  certificate: 'Certificates',
+  team_access: 'Team access',
+  discovery_sync: 'Discovery sync',
+  gating: 'Gating',
   org_registration: 'Org registration',
 };
 
@@ -27,6 +28,13 @@ const PhaseSection = ({ phase, jobs }) => {
       <ProgressBar now={pct} label={`${pct}%`} variant={pct === 100 ? 'success' : 'primary'} />
     </div>
   );
+};
+
+PhaseSection.propTypes = {
+  phase: PropTypes.string.isRequired,
+  jobs: PropTypes.arrayOf(PropTypes.shape({
+    status: PropTypes.string.isRequired,
+  })).isRequired,
 };
 
 export default PhaseSection;

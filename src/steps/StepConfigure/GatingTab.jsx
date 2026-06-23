@@ -2,24 +2,28 @@
 // Disabled) and, when Custom map is active, min score and min completion inputs.
 // Rendered inside StepConfigure when the 'gating' sub-tab is active.
 // Props: gating, setGating (local state owned by StepConfigure).
-import React from 'react';
+import PropTypes from 'prop-types';
 import { Alert, Form } from '@openedx/paragon';
 import './GatingTab.scss';
 
 const GATING_MODES = [
-  { v: 'copy',     title: 'Copy from source', desc: 'Replicate source course gating rules' },
-  { v: 'custom',   title: 'Custom map',       desc: 'Define prerequisite blocks with min score/completion' },
-  { v: 'disabled', title: 'Disabled',         desc: 'No gating - all content immediately accessible' },
+  { v: 'copy', title: 'Copy from source', desc: 'Replicate source course gating rules' },
+  { v: 'custom', title: 'Custom map', desc: 'Define prerequisite blocks with min score/completion' },
+  { v: 'disabled', title: 'Disabled', desc: 'No gating - all content immediately accessible' },
 ];
 
-function Lbl({ children, hint }) {
-  return (
-    <Form.Label className="sc-lbl">
-      {children}
-      {hint && <span className="sc-lbl-hint">{hint}</span>}
-    </Form.Label>
-  );
-}
+const Lbl = ({ children, hint }) => (
+  <Form.Label className="sc-lbl">
+    {children}
+    {hint && <span className="sc-lbl-hint">{hint}</span>}
+  </Form.Label>
+);
+
+Lbl.propTypes = {
+  children: PropTypes.node.isRequired,
+  hint: PropTypes.string,
+};
+Lbl.defaultProps = { hint: null };
 
 const GatingTab = ({ gating, setGating }) => (
   <div>
@@ -31,8 +35,14 @@ const GatingTab = ({ gating, setGating }) => (
       <Lbl>Gating mode</Lbl>
       <div className="sc-gating-grid">
         {GATING_MODES.map(m => (
-          <label key={m.v} className={`sc-gating-option${gating.mode === m.v ? ' sc-gating-option--active' : ''}`}>
+          <label
+            key={m.v}
+            htmlFor={`gmode-${m.v}`}
+            aria-label={m.title}
+            className={`sc-gating-option${gating.mode === m.v ? ' sc-gating-option--active' : ''}`}
+          >
             <input
+              id={`gmode-${m.v}`}
               type="radio"
               name="gmode"
               value={m.v}
@@ -74,5 +84,14 @@ const GatingTab = ({ gating, setGating }) => (
     )}
   </div>
 );
+
+GatingTab.propTypes = {
+  gating: PropTypes.shape({
+    mode: PropTypes.string,
+    minScore: PropTypes.string,
+    minComplete: PropTypes.string,
+  }).isRequired,
+  setGating: PropTypes.func.isRequired,
+};
 
 export default GatingTab;

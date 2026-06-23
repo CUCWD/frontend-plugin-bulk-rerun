@@ -1,6 +1,7 @@
 // Draft org-group component for StepProgress using Paragon Collapsible and CourseRow.
 // NOT currently imported — the active org-level grouping is inside JobProgress.jsx.
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Collapsible, Badge } from '@openedx/paragon';
 
 import CourseRow from './CourseRow';
@@ -29,6 +30,15 @@ const OrgGroup = ({ org, jobs }) => {
       {jobs.map(job => <CourseRow key={job.id} job={job} />)}
     </Collapsible>
   );
+};
+
+OrgGroup.propTypes = {
+  org: PropTypes.string.isRequired,
+  jobs: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    status: PropTypes.string.isRequired,
+    target_course_key: PropTypes.string.isRequired,
+  })).isRequired,
 };
 
 export default OrgGroup;

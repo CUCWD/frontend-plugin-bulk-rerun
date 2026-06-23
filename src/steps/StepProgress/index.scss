@@ -1,13 +1,13 @@
 // ── Design tokens ─────────────────────────────────────────────────────────────
-$sp-brand:   #006daa;
-$sp-danger:  #c32d3a;
+$sp-brand:   #006DAA;
+$sp-danger:  #C32D3A;
 $sp-warning: #856404;
-$sp-g50:     #f8f9fa;
-$sp-g500:    #6c757d;
+$sp-g50:     #F8F9FA;
+$sp-g500:    #6C757D;
 $sp-g700:    #454545;
-$sp-g900:    #1f2937;
-$sp-border:  #939ca5;
-$sp-white:   #fff;
+$sp-g900:    #1F2937;
+$sp-border:  #939CA5;
+$sp-white:   #FFFFFF;
 $sp-mono:    "SFMono-Regular", "Courier New", monospace;
 
 // ── Empty state ────────────────────────────────────────────────────────────────
@@ -20,9 +20,22 @@ $sp-mono:    "SFMono-Regular", "Courier New", monospace;
   color: $sp-g500;
 }
 
-.sp-empty-icon  { font-size: 36px; margin-bottom: 12px; }
-.sp-empty-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; color: $sp-g700; }
-.sp-empty-sub   { font-size: 14px; margin-bottom: 20px; }
+.sp-empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.sp-empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: $sp-g700;
+}
+
+.sp-empty-sub {
+  font-size: 14px;
+  margin-bottom: 20px;
+}
 
 // ── Filter bar ─────────────────────────────────────────────────────────────────
 .sp-filter-bar {
@@ -33,7 +46,11 @@ $sp-mono:    "SFMono-Regular", "Courier New", monospace;
   flex-wrap: wrap;
 }
 
-.sp-filter-count { font-size: 14px; color: $sp-g700; font-weight: 500; }
+.sp-filter-count {
+  font-size: 14px;
+  color: $sp-g700;
+  font-weight: 500;
+}
 
 .sp-filter-right {
   display: flex;
@@ -42,7 +59,11 @@ $sp-mono:    "SFMono-Regular", "Courier New", monospace;
   margin-left: auto;
 }
 
-.sp-filter-label  { font-size: 13px; color: $sp-g500; }
+.sp-filter-label {
+  font-size: 13px;
+  color: $sp-g500;
+}
+
 .sp-filter-select { min-width: 180px; }
 
 // ── No-match message ───────────────────────────────────────────────────────────
@@ -86,9 +107,14 @@ $sp-mono:    "SFMono-Regular", "Courier New", monospace;
   font-size: 13px;
   color: $sp-g500;
 
-  &-sep  { color: $sp-border; }
-  &-user { font-weight: 500; color: $sp-g700; }
+  &-sep { color: $sp-border; }
+
+  &-user {
+    font-weight: 500;
+    color: $sp-g700;
+  }
 }
+
 .sp-job-spacer { flex: 1; }
 .sp-stop-btn    { color: $sp-warning !important; }
 .sp-dismiss-btn { color: $sp-danger  !important; }

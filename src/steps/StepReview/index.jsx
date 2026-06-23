@@ -3,8 +3,11 @@
 // Mode toggle: 'preview' dispatches a dry-run job; 'execute' creates real course reruns.
 // The Submit button is disabled while any conflict row is unresolved.
 import { useState, useMemo } from 'react';
-import { Button, Alert, Badge, DataTable, Spinner } from '@openedx/paragon';
+import {
+  Button, Alert, Badge, DataTable, Spinner,
+} from '@openedx/paragon';
 
+import PropTypes from 'prop-types';
 import { useCreateBatch } from '../../hooks';
 import { buildBatchPayload } from '../../utils/batchPayload';
 import { makeKey, detectConflict, isHardConflict } from '../../utils/courseKeys';
@@ -13,29 +16,46 @@ import './index.scss';
 
 const CONFLICT_MSG_MAP = {
   exists: 'Key already exists in the platform',
-  dup:    'Duplicate key within this batch',
-  self:   'Target key is identical to source',
-  org:    'Organization not found in platform',
+  dup: 'Duplicate key within this batch',
+  self: 'Target key is identical to source',
+  org: 'Organization not found in platform',
 };
 
-const conflictCls = ct => (ct === 'exists' ? ' sr-cell--exists' : ct ? ' sr-cell--conflict' : '');
+const conflictCls = (ct) => {
+  if (ct === 'exists') { return ' sr-cell--exists'; }
+  if (ct) { return ' sr-cell--conflict'; }
+  return '';
+};
 
-export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatchFailed }) {
+const conflictIcon = (ct) => {
+  if (isHardConflict(ct)) {
+    return <span className="sr-conflict-icon">🚫</span>;
+  }
+  if (ct === 'exists') {
+    return <span className="sr-conflict-icon">⚠️</span>;
+  }
+  return <span className="sr-ok-check">✓</span>;
+};
+
+const StepReview = ({
+  cfg, onBack, onSubmit, onBatchReady, onBatchFailed,
+}) => {
   const {
     rows = [], runId = '', sched = {}, certs = {},
     orgRosters = {}, removeOp = true, gating = {},
-    fromMode = 'course', prog = null, newOrgs = [],
+    fromMode = 'course',
     courseDiscoveryEnabled = true, existsSet,
   } = cfg || {};
 
   const existsSetSafe = existsSet instanceof Set ? existsSet : new Set(existsSet || []);
 
-  const dryRunEnabled = process.env.ENABLE_BULK_RERUN_DRY_RUN === 'true' || process.env.ENABLE_BULK_RERUN_DRY_RUN === true;
+  const dryRunEnabled = process.env.ENABLE_BULK_RERUN_DRY_RUN === 'true'
+    || process.env.ENABLE_BULK_RERUN_DRY_RUN === true;
 
   const createBatch = useCreateBatch();
 
-  const [mode,        setMode]        = useState('execute');
-  const [busy,        setBusy]        = useState(false);
+  const [mode, setMode] = useState('execute');
+  const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
   const conflicts = rows.map((r, i) => detectConflict(r, rows, i, existsSetSafe));
@@ -47,35 +67,56 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
   const [openOrgs, setOpenOrgs] = useState(() => Object.fromEntries(orgs.map(o => [o, true])));
 
   const CERT_DISP_MAP = {
-    early_no_info:   'Immediately upon passing',
+    early_no_info: 'Immediately upon passing',
     early_with_info: 'Immediately with course info',
-    end:             'After course end date',
+    end: 'After course end date',
   };
   const certDisplay = CERT_DISP_MAP[certs.display] || certs.display;
 
   const GATING_LBL_MAP = {
-    disabled: 'Disabled', copy: 'Copy from source',
-    template: 'Apply template', custom: 'Custom map',
+    disabled: 'Disabled',
+    copy: 'Copy from source',
+    template: 'Apply template',
+    custom: 'Custom map',
   };
   const gatingLabel = GATING_LBL_MAP[gating.mode] || gating.mode;
+  const gatingSummary = gating.mode === 'custom'
+    ? `${gatingLabel} (${gating.minScore ?? '80'}% min score, ${gating.minComplete ?? '100'}% min completion)`
+    : gatingLabel;
 
   const rosterFilled = Object.values(orgRosters).flat().filter(r => r.email);
 
   const execOptions = [
     {
-      v: 'execute', icon: '▶',
+      v: 'execute',
+      icon: '▶',
       title: 'Execute reruns',
-      desc: 'Creates course runs, applies settings' + (courseDiscoveryEnabled ? ', syncs Discovery, links programs' : ''),
+      desc: `Creates course runs, applies settings${ courseDiscoveryEnabled ? ', syncs Discovery, links programs' : ''}`,
     },
     {
-      v: 'preview', icon: '🔍',
+      v: 'preview',
+      icon: '🔍',
       title: 'Preview plan (dry-run)',
       desc: 'Validates all steps without creating or modifying any data',
     },
   ];
 
+  const keyConflictsLabel = () => {
+    if (nHardConf > 0) { return `${nHardConf } conflict${ nHardConf !== 1 ? 's' : ''}`; }
+    if (nExistsConf > 0) { return `${nExistsConf } existing`; }
+    return 'None';
+  };
+
+  const conflictValCls = (k) => {
+    if (k !== 'Key conflicts') { return ''; }
+    if (nHardConf > 0) { return ' sr-settings-val--danger'; }
+    if (nExistsConf > 0) { return ' sr-settings-val--warn'; }
+    return ' sr-settings-val--ok';
+  };
+
   // Column definitions are stable — cell renderers only access row.original.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  /* eslint-disable react/no-unstable-nested-components, react/prop-types */
   const reviewColumns = useMemo(() => [
     {
       id: 'indicator',
@@ -86,11 +127,7 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
         const ct = row.original.conflictType;
         return (
           <div className={`sr-cell sr-cell--indicator${conflictCls(ct)}`}>
-            {isHardConflict(ct)
-              ? <span className="sr-conflict-icon">🚫</span>
-              : ct === 'exists'
-                ? <span className="sr-conflict-icon">⚠️</span>
-                : <span className="sr-ok-check">✓</span>}
+            {conflictIcon(ct)}
           </div>
         );
       },
@@ -166,13 +203,14 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
       ),
     },
   ], []);
+  /* eslint-enable react/no-unstable-nested-components, react/prop-types */
 
   return (
     <div>
       {nHardConf > 0
         ? (
           <Alert variant="danger" className="mb-3 py-2">
-            <strong className="sr-alert-title">{nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '') + ' - submission blocked'}</strong>
+            <strong className="sr-alert-title">{`${nHardConf } conflict${ nHardConf !== 1 ? 's' : '' } - submission blocked`}</strong>
             <ul className="sr-conflict-list">
               {rows.map((r, i) => (
                 isHardConflict(conflicts[i])
@@ -189,11 +227,11 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
           </Alert>
         )
         : (
-            <Alert variant="success" className="mb-3 py-2">
-              <strong className="sr-alert-title--sm">All course keys verified - no conflicts detected</strong>
-              Every target key checked against the platform. Ready to submit.
-            </Alert>
-          )}
+          <Alert variant="success" className="mb-3 py-2">
+            <strong className="sr-alert-title--sm">All course keys verified - no conflicts detected</strong>
+            Every target key checked against the platform. Ready to submit.
+          </Alert>
+        )}
 
       {!courseDiscoveryEnabled && (
         <Alert variant="warning" className="mb-3 py-2">
@@ -210,9 +248,12 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
             {execOptions.map(m => (
               <label
                 key={m.v}
+                htmlFor={`execmode-${m.v}`}
+                aria-label={m.title}
                 className={`sr-exec-option${mode === m.v ? ' sr-exec-option--active' : ''}`}
               >
                 <input
+                  id={`execmode-${m.v}`}
                   type="radio"
                   name="execmode"
                   value={m.v}
@@ -220,7 +261,7 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
                   onChange={() => setMode(m.v)}
                 />
                 <div>
-                  <div className="sr-exec-option-title">{m.icon + ' ' + m.title}</div>
+                  <div className="sr-exec-option-title">{`${m.icon } ${ m.title}`}</div>
                   <div className="sr-exec-option-desc">{m.desc}</div>
                 </div>
               </label>
@@ -235,12 +276,12 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
           <div className="sr-settings-card-header">Scheduling &amp; certificates</div>
           <div className="sr-settings-body">
             {[
-              ['Course dates',  sched.start + ' to ' + sched.end],
-              ['Enrollment',    sched.enrollStart + ' to ' + sched.enrollEnd],
-              ['Pacing',        sched.pacing === 'instructor' ? 'Instructor-paced' : 'Self-paced'],
-              ['Target run',    runId],
-              ['Course mode',   (certs.mode || '').toUpperCase()],
-              ['Cert display',  certDisplay],
+              ['Course dates', `${sched.start } to ${ sched.end}`],
+              ['Enrollment', `${sched.enrollStart } to ${ sched.enrollEnd}`],
+              ['Pacing', sched.pacing === 'instructor' ? 'Instructor-paced' : 'Self-paced'],
+              ['Target run', runId],
+              ['Course mode', (certs.mode || '').toUpperCase()],
+              ['Cert display', certDisplay],
               ['Student certs', certs.studentGenCert ? 'Enabled' : 'Disabled'],
             ].map(([k, v]) => (
               <div key={k} className="sr-settings-row">
@@ -255,19 +296,17 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
           <div className="sr-settings-card-header">Team, gating &amp; job</div>
           <div className="sr-settings-body">
             {[
-              ['Selection',          fromMode === 'course' ? 'By Individual Course' : fromMode],
-              ['Total runs',         String(rows.length)],
-              ['Organizations',      orgs.join(', ') || '-'],
-              ['Team members',       rosterFilled.length ? (rosterFilled.length + ' from CAR') : 'None'],
+              ['Selection', fromMode === 'course' ? 'By Individual Course' : fromMode],
+              ['Total runs', String(rows.length)],
+              ['Organizations', orgs.join(', ') || '-'],
+              ['Team members', rosterFilled.length ? (`${rosterFilled.length } from CAR`) : 'None'],
               ['Remove provisioner', removeOp ? 'Yes' : 'No'],
-              ['Lesson gating',      gating.mode === 'custom'
-                ? `${gatingLabel} (${gating.minScore ?? '80'}% min score, ${gating.minComplete ?? '100'}% min completion)`
-                : gatingLabel],
-              ['Key conflicts',      nHardConf > 0 ? (nHardConf + ' conflict' + (nHardConf !== 1 ? 's' : '')) : nExistsConf > 0 ? (nExistsConf + ' existing') : 'None'],
+              ['Lesson gating', gatingSummary],
+              ['Key conflicts', keyConflictsLabel()],
             ].map(([k, v]) => (
               <div key={k} className="sr-settings-row">
                 <span className="sr-settings-key">{k}</span>
-                <span className={`sr-settings-val${k === 'Key conflicts' ? (nHardConf > 0 ? ' sr-settings-val--danger' : nExistsConf > 0 ? ' sr-settings-val--warn' : ' sr-settings-val--ok') : ''}`}>{v}</span>
+                <span className={`sr-settings-val${conflictValCls(k)}`}>{v}</span>
               </div>
             ))}
           </div>
@@ -278,7 +317,7 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
       <div className="sr-accordion">
         <div className="sr-accordion-header">
           <span className="sr-accordion-title">
-            {rows.length + ' course run' + (rows.length !== 1 ? 's' : '') + ' across ' + orgs.length + ' org' + (orgs.length !== 1 ? 's' : '')}
+            {`${rows.length } course run${ rows.length !== 1 ? 's' : '' } across ${ orgs.length } org${ orgs.length !== 1 ? 's' : ''}`}
           </span>
           <div className="sr-accordion-btns">
             <Button variant="tertiary" size="sm" onClick={() => setOpenOrgs(Object.fromEntries(orgs.map(o => [o, true])))}>Expand all</Button>
@@ -287,20 +326,27 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
         </div>
 
         {orgs.map(orgCode => {
-          const orgRows    = rows.map((r, i) => ({ ...r, i })).filter(r => r.org === orgCode);
-          const orgErr     = orgRows.some(r => isHardConflict(conflicts[r.i]));
-          const isOpen     = openOrgs[orgCode] !== false;
-          const tableData  = orgRows.map(r => ({ ...r, conflictType: conflicts[r.i] }));
+          const orgRows = rows.map((r, i) => ({ ...r, i })).filter(r => r.org === orgCode);
+          const orgErr = orgRows.some(r => isHardConflict(conflicts[r.i]));
+          const isOpen = openOrgs[orgCode] !== false;
+          const tableData = orgRows.map(r => ({ ...r, conflictType: conflicts[r.i] }));
 
           return (
             <div key={orgCode} className="sr-org-section">
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setOpenOrgs(p => ({ ...p, [orgCode]: !isOpen }))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setOpenOrgs(p => ({ ...p, [orgCode]: !isOpen }));
+                  }
+                }}
                 className={`sr-org-header${orgErr ? ' sr-org-header--error' : ''}`}
               >
                 <div className="sr-org-dot">{orgErr ? '✕' : '✓'}</div>
                 <span className="sr-org-code">{orgRows[0]?.orgName} ({orgCode})</span>
-                <span className="sr-org-meta">{orgRows.length + ' course' + (orgRows.length !== 1 ? 's' : '')}</span>
+                <span className="sr-org-meta">{`${orgRows.length } course${ orgRows.length !== 1 ? 's' : ''}`}</span>
                 {orgErr && (
                   <Badge variant="danger" pill>conflict</Badge>
                 )}
@@ -315,7 +361,10 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
                       columns={reviewColumns}
                       data={tableData}
                       itemCount={tableData.length}
-                      initialTableOptions={{ getRowId: row => row.id }}
+                      initialTableOptions={{
+                        // eslint-disable-next-line react/prop-types
+                        getRowId: row => row.id,
+                      }}
                     >
                       <DataTable.Table isStriped={false} />
                     </DataTable>
@@ -387,17 +436,45 @@ export default function StepReview({ cfg, onBack, onSubmit, onBatchReady, onBatc
                 });
             }}
           >
-            {busy
-              ? (
-                <>
-                  <Spinner animation="border" size="sm" className="sr-spinner" />
-                  {mode === 'preview' ? 'Running preview...' : 'Submitting...'}
-                </>
-              )
-              : (mode === 'preview' ? '🔍 Preview plan' : '▶ Execute reruns')}
+            {busy && (
+              <>
+                <Spinner animation="border" size="sm" className="sr-spinner" />
+                {mode === 'preview' ? 'Running preview...' : 'Submitting...'}
+              </>
+            )}
+            {!busy && (mode === 'preview' ? '🔍 Preview plan' : '▶ Execute reruns')}
           </Button>
         </div>
       </div>
     </div>
   );
-}
+};
+
+StepReview.propTypes = {
+  cfg: PropTypes.shape({
+    rows: PropTypes.arrayOf(PropTypes.shape({})),
+    runId: PropTypes.string,
+    sched: PropTypes.shape({}),
+    certs: PropTypes.shape({}),
+    orgRosters: PropTypes.shape({}),
+    removeOp: PropTypes.bool,
+    gating: PropTypes.shape({}),
+    fromMode: PropTypes.string,
+    prog: PropTypes.shape({}),
+    newOrgs: PropTypes.arrayOf(PropTypes.shape({})),
+    courseDiscoveryEnabled: PropTypes.bool,
+    existsSet: PropTypes.instanceOf(Set),
+  }),
+  onBack: PropTypes.func.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+  onBatchReady: PropTypes.func,
+  onBatchFailed: PropTypes.func,
+};
+
+StepReview.defaultProps = {
+  cfg: null,
+  onBatchReady: null,
+  onBatchFailed: null,
+};
+
+export default StepReview;

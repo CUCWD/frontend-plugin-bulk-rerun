@@ -1,9 +1,10 @@
+import PropTypes from 'prop-types';
 import { Button, Spinner } from '@openedx/paragon';
 import './DestOrgPicker.scss';
 
-export default function DestOrgPicker({
+const DestOrgPicker = ({
   orgs, selectedCodes, onToggle, onSelectAll, onClearAll, isLoading, isError,
-}) {
+}) => {
   const selectedCount = selectedCodes.size;
 
   return (
@@ -39,10 +40,14 @@ export default function DestOrgPicker({
             return (
               <div
                 key={o.code}
+                role="checkbox"
+                tabIndex={0}
+                aria-checked={on}
                 onClick={() => onToggle(o.code)}
+                onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { onToggle(o.code); } }}
                 className={`ss-org-item${on ? ' ss-org-item--selected' : ''}`}
               >
-                <input type="checkbox" checked={on} readOnly />
+                <input type="checkbox" checked={on} readOnly tabIndex={-1} />
                 <div className="ss-org-inner">
                   <div className="ss-org-item-name">{o.name}</div>
                   <div className="ss-org-item-code">{o.code}</div>
@@ -54,4 +59,19 @@ export default function DestOrgPicker({
       )}
     </div>
   );
-}
+};
+
+DestOrgPicker.propTypes = {
+  orgs: PropTypes.arrayOf(PropTypes.shape({
+    code: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+  })).isRequired,
+  selectedCodes: PropTypes.instanceOf(Set).isRequired,
+  onToggle: PropTypes.func.isRequired,
+  onSelectAll: PropTypes.func.isRequired,
+  onClearAll: PropTypes.func.isRequired,
+  isLoading: PropTypes.bool.isRequired,
+  isError: PropTypes.bool.isRequired,
+};
+
+export default DestOrgPicker;

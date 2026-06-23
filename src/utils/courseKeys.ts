@@ -1,9 +1,8 @@
 // Course key utilities. A CourseKey has the form "course-v1:ORG+NUM+RUN".
 // makeKey builds one; parseKeyParts splits one back into its three components.
 // detectConflict is the client-side pre-flight validator called from StepConfigure and StepReview.
-// It reports: 'exists' (key already on platform), 'dup' (same key used twice in this batch), or 'self' (source === target).
-export const makeKey = (org: string, num: string, run: string) =>
-  `course-v1:${org}+${num}+${run}`;
+// Reports: 'exists' (key on platform), 'dup' (duplicate in batch), or 'self' (source === target).
+export const makeKey = (org: string, num: string, run: string) => `course-v1:${org}+${num}+${run}`;
 
 export const RUN_ID_RE = /^[A-Za-z0-9_\-~.]+$/;
 
@@ -11,20 +10,19 @@ export const RUN_ID_RE = /^[A-Za-z0-9_\-~.]+$/;
 export const COURSE_ID_MAX_COMBINED = 65;
 
 export function validateRunId(id: string, maxLen = 100): { ok: boolean; msg: string } {
-  if (!id?.trim())         return { ok: false, msg: 'Run identifier is required' };
-  if (!RUN_ID_RE.test(id)) return { ok: false, msg: 'Invalid characters - allowed: letters, digits, _ - ~ .' };
-  if (id.length > maxLen)  return { ok: false, msg: `Too long - max ${maxLen} chars` };
+  if (!id?.trim()) { return { ok: false, msg: 'Run identifier is required' }; }
+  if (!RUN_ID_RE.test(id)) { return { ok: false, msg: 'Invalid characters - allowed: letters, digits, _ - ~ .' }; }
+  if (id.length > maxLen) { return { ok: false, msg: `Too long - max ${maxLen} chars` }; }
   return { ok: true, msg: 'Valid course run identifier' };
 }
 
 export const courseRunPrefix = (run: string): string => {
-  if (run === 'DEMO') return 'Demo: ';
-  if (run === 'DEV')  return 'DEV: ';
+  if (run === 'DEMO') { return 'Demo: '; }
+  if (run === 'DEV') { return 'DEV: '; }
   return '';
 };
 
-export const stripRunPrefix = (s: string): string =>
-  s.replace(/^(Demo|DEV):\s*/i, '').trim();
+export const stripRunPrefix = (s: string): string => s.replace(/^(Demo|DEV):\s*/i, '').trim();
 
 // Splits "course-v1:ORG+NUM+RUN" into {org, num, run}
 export function parseKeyParts(key: string): { org: string; num: string; run: string } {
@@ -55,14 +53,13 @@ export function detectConflict(
   existsSet = new Set<string>(),
 ): 'exists' | 'dup' | 'self' | null {
   const tk = makeKey(row.org, row.num, row.run);
-  if (existsSet.has(tk))                                                           return 'exists';
-  if (all.some((r, i) => i !== idx && makeKey(r.org, r.num, r.run) === tk))       return 'dup';
-  if (row.org === row.srcOrg && row.num === row.srcNum && row.run === row.srcRun)  return 'self';
+  if (existsSet.has(tk)) { return 'exists'; }
+  if (all.some((r, i) => i !== idx && makeKey(r.org, r.num, r.run) === tk)) { return 'dup'; }
+  if (row.org === row.srcOrg && row.num === row.srcNum && row.run === row.srcRun) { return 'self'; }
   return null;
 }
 
 // 'exists' is a soft warning — the backend skips course creation and re-applies
 // settings to the already-present course. 'dup' and 'self' are structural errors
 // that cannot succeed regardless, so they must be resolved before submission.
-export const isHardConflict = (ct: string | null): boolean =>
-  ct === 'dup' || ct === 'self';
+export const isHardConflict = (ct: string | null): boolean => ct === 'dup' || ct === 'self';

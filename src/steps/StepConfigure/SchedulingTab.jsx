@@ -3,21 +3,22 @@
 // Rendered inside StepConfigure when the 'scheduling' sub-tab is active.
 // Props: sched, setSched, runId, setRunId, schedErrs, schedOkUI, runIdV
 //        (state and derived values owned by StepConfigure).
+import PropTypes from 'prop-types';
 import { Alert, Form } from '@openedx/paragon';
 import './SchedulingTab.scss';
 
 const DATE_FIELDS = [
-  ['Course start date',   'start'],
-  ['Course end date',     'end'],
-  ['Enrollment start',    'enrollStart'],
-  ['Enrollment end',      'enrollEnd'],
+  ['Course start date', 'start'],
+  ['Course end date', 'end'],
+  ['Enrollment start', 'enrollStart'],
+  ['Enrollment end', 'enrollEnd'],
 ];
 
-function Lbl({ children }) {
-  return <Form.Label className="sc-lbl">{children}</Form.Label>;
-}
+const Lbl = ({ children }) => <Form.Label className="sc-lbl">{children}</Form.Label>;
 
-const SchedulingTab = ({ sched, setSched, runId, setRunId, schedErrs, schedOkUI, runIdV }) => (
+const SchedulingTab = ({
+  sched, setSched, runId, setRunId, schedErrs, schedOkUI, runIdV,
+}) => (
   <div>
     <div className="sc-grid-2">
       {DATE_FIELDS.map(([lbl, k]) => (
@@ -77,5 +78,26 @@ const SchedulingTab = ({ sched, setSched, runId, setRunId, schedErrs, schedOkUI,
     )}
   </div>
 );
+
+Lbl.propTypes = { children: PropTypes.node.isRequired };
+
+SchedulingTab.propTypes = {
+  sched: PropTypes.shape({
+    start: PropTypes.string,
+    end: PropTypes.string,
+    enrollStart: PropTypes.string,
+    enrollEnd: PropTypes.string,
+    pacing: PropTypes.string,
+  }).isRequired,
+  setSched: PropTypes.func.isRequired,
+  runId: PropTypes.string.isRequired,
+  setRunId: PropTypes.func.isRequired,
+  schedErrs: PropTypes.objectOf(PropTypes.string).isRequired,
+  schedOkUI: PropTypes.bool.isRequired,
+  runIdV: PropTypes.shape({
+    ok: PropTypes.bool,
+    msg: PropTypes.string,
+  }).isRequired,
+};
 
 export default SchedulingTab;
