@@ -5,13 +5,14 @@ import {
   useState, useEffect, useCallback, useMemo,
 } from 'react';
 import PropTypes from 'prop-types';
-import {
-  Card, Button, Spinner, DataTable,
-} from '@openedx/paragon';
+import { Card, Button } from '@openedx/paragon';
 
 import { stripRunPrefix } from '../../utils/courseKeys';
 import { useCourses, useOrgs, usePrograms } from '../../hooks';
 import DestOrgPicker from './DestOrgPicker';
+import CourseFilters from './CourseFilters';
+import CourseTable from './CourseTable';
+import useCourseColumns from './useCourseColumns';
 import './index.scss';
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -118,45 +119,7 @@ const StepSelect = ({ courseDiscoveryEnabled, onNext }) => {
     });
   }, []);
 
-  /* eslint-disable react/no-unstable-nested-components, react/prop-types */
-  const columns = useMemo(() => [
-    ...(showPrograms ? [{
-      Header: 'Program',
-      accessor: 'progId',
-      disableSortBy: true,
-      Cell: ({ row }) => {
-        const pp = programById[row.original.progId];
-        return pp ? <span className="ss-program-badge">{pp.shortName}</span> : null;
-      },
-    }] : []),
-    {
-      Header: 'Org',
-      accessor: 'org',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <span className="ss-org-badge">{row.original.org}</span>
-      ),
-    },
-    {
-      Header: 'Course name',
-      accessor: 'name',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <span className={`ss-name${row.isSelected ? ' ss-name--sel' : ''}`}>
-          {stripRunPrefix(row.original.name)}
-        </span>
-      ),
-    },
-    {
-      Header: 'Course number',
-      accessor: 'num',
-      disableSortBy: true,
-      Cell: ({ row }) => (
-        <span className="ss-num">{row.original.num}</span>
-      ),
-    },
-  ], [showPrograms, programById]);
-  /* eslint-enable react/no-unstable-nested-components, react/prop-types */
+  const columns = useCourseColumns(showPrograms, programById);
 
   const toggleDestOrg = code => setDestOrgSel(prev => {
     const n = new Set(prev);
@@ -206,48 +169,19 @@ const StepSelect = ({ courseDiscoveryEnabled, onNext }) => {
         </div>
       </Card.Section>
 
-      {/* Filters row */}
-      <div className="ss-filters">
-        {showPrograms && (
-          <select
-            value={progFilter}
-            onChange={e => setProgFilter(e.target.value)}
-            className="ss-filter-select"
-          >
-            <option value="">All programs</option>
-            {Object.values(programById).map(p => (
-              <option key={p.id} value={p.id}>{p.shortName}</option>
-            ))}
-          </select>
-        )}
-
-        <select
-          value={srcOrgFilter}
-          onChange={e => setSrcOrgFilter(e.target.value)}
-          className="ss-filter-select ss-filter-select--wide"
-        >
-          <option value="">All orgs</option>
-          {srcOrgOptions.map(o => (
-            <option key={o.code} value={o.code}>{o.name} ({o.code})</option>
-          ))}
-        </select>
-
-        <div className="ss-search-wrap">
-          <input
-            value={courseQ}
-            onChange={e => setCourseQ(e.target.value)}
-            placeholder="Filter by course name or number..."
-            className="ss-search-input"
-          />
-          <span className="ss-search-icon">&#128269;</span>
-        </div>
-
-        {courseCount > 0 && (
-          <Button variant="tertiary" size="sm" onClick={clearAll} className="ss-clear-btn">
-            Clear ({courseCount})
-          </Button>
-        )}
-      </div>
+      <CourseFilters
+        showPrograms={showPrograms}
+        programById={programById}
+        progFilter={progFilter}
+        srcOrgOptions={srcOrgOptions}
+        srcOrgFilter={srcOrgFilter}
+        courseQ={courseQ}
+        courseCount={courseCount}
+        onProgFilter={setProgFilter}
+        onSrcOrgFilter={setSrcOrgFilter}
+        onCourseQ={setCourseQ}
+        onClear={clearAll}
+      />
 
       {/* Selection banner */}
       {courseCount > 0 && (
@@ -261,60 +195,17 @@ const StepSelect = ({ courseDiscoveryEnabled, onNext }) => {
         </div>
       )}
 
-      {/* Course table */}
-      {coursesLoading && (
-        <div className="ss-loading">
-          <Spinner animation="border" size="sm" className="me-2" />
-          Loading courses…
-        </div>
-      )}
-      {coursesError && (
-        <div className="ss-error">
-          Failed to load courses. Please refresh and try again.
-        </div>
-      )}
-      {!coursesLoading && !coursesError && (
-        <>
-          <div className="ss-course-table">
-            {/* eslint-disable-next-line
-              jsx-a11y/click-events-have-key-events,
-              jsx-a11y/no-static-element-interactions */}
-            <div
-              onClick={(e) => {
-                const tr = e.target.closest('tr.pgn__data-table-row');
-                if (!tr) { return; }
-                if (e.target.type === 'checkbox' || e.target.closest('label')) { return; }
-                const cb = tr.querySelector('input[type="checkbox"]');
-                if (cb) { cb.click(); }
-              }}
-            >
-              <DataTable
-                key={`${srcOrgFilter }-${ clearKey}`}
-                isSelectable
-                columns={columns}
-                data={filtered}
-                itemCount={filtered.length}
-                onSelectedRowsChanged={handleSelectedRowsChanged}
-                initialTableOptions={{
-                  // eslint-disable-next-line react/prop-types
-                  getRowId: row => row.id,
-                  autoResetSelectedRows: false,
-                }}
-              >
-                <DataTable.Table isStriped={false} />
-                <DataTable.EmptyTable content="No courses match your filters." />
-              </DataTable>
-            </div>
-          </div>
-          <div className="ss-table-footer">
-            <span>
-              {`Showing ${ filtered.length } course${ filtered.length !== 1 ? 's' : ''}`}
-              {filtered.length !== courses.length ? ` of ${ courses.length}` : ''}
-            </span>
-            <span>{courseCount} selected</span>
-          </div>
-        </>
-      )}
+      <CourseTable
+        loading={coursesLoading}
+        error={coursesError}
+        columns={columns}
+        filtered={filtered}
+        courses={courses}
+        courseCount={courseCount}
+        srcOrgFilter={srcOrgFilter}
+        clearKey={clearKey}
+        onSelectedRowsChanged={handleSelectedRowsChanged}
+      />
 
       {/* Destination orgs */}
       {courseCount > 0 && (

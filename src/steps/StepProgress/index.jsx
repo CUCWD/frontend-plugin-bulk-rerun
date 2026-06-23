@@ -9,15 +9,15 @@ import {
   useState, useCallback, useEffect, useRef,
 } from 'react';
 import PropTypes from 'prop-types';
-import { Button, Badge, Form } from '@openedx/paragon';
+import { Button } from '@openedx/paragon';
 
 import { useCreateBatch, useCancelBatch, useRunningBatches } from '../../hooks';
 import { buildBatchPayload } from '../../utils/batchPayload';
 import { useBulkRerunState } from '../../state';
-import JobProgress from '../../tracking/JobProgress';
+import EmptyState from './EmptyState';
+import FilterBar from './FilterBar';
+import JobCard from './JobCard';
 import './index.scss';
-
-const fmtDate = iso => { try { return new Date(iso).toLocaleString(); } catch (_e) { return iso || ''; } };
 
 const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   const {
@@ -92,46 +92,17 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   const uniqueUsers = [...new Set(activeJobs.map(j => j.createdBy))].sort();
 
   if (activeJobs.length === 0) {
-    return (
-      <div className="sp-empty">
-        <div className="sp-empty-icon">📊</div>
-        <div className="sp-empty-title">No active runs</div>
-        <div className="sp-empty-sub">
-          Start a bulk run from the wizard. Progress will appear here in real time.
-        </div>
-        <Button variant="primary" onClick={onGoWizard}>Go to Bulk Run Wizard</Button>
-      </div>
-    );
+    return <EmptyState onGoWizard={onGoWizard} />;
   }
 
   return (
     <div>
-      {/* Filter bar */}
-      <div className="sp-filter-bar">
-        <span className="sp-filter-count">
-          {`${activeJobs.length } active run${ activeJobs.length !== 1 ? 's' : ''}`}
-        </span>
-        <div className="sp-filter-right">
-          <span className="sp-filter-label">Filter by user:</span>
-          <Form.Control
-            as="select"
-            size="sm"
-            value={jobUserFilter}
-            onChange={e => setJobUserFilter(e.target.value)}
-            className="sp-filter-select"
-          >
-            <option value="">{`All users (${ activeJobs.length })`}</option>
-            {uniqueUsers.map(u => (
-              <option key={u} value={u}>
-                {`${u } (${ activeJobs.filter(j => j.createdBy === u).length })`}
-              </option>
-            ))}
-          </Form.Control>
-          {jobUserFilter && (
-            <Button variant="tertiary" size="sm" onClick={() => setJobUserFilter('')}>Clear</Button>
-          )}
-        </div>
-      </div>
+      <FilterBar
+        activeJobs={activeJobs}
+        jobUserFilter={jobUserFilter}
+        setJobUserFilter={setJobUserFilter}
+        uniqueUsers={uniqueUsers}
+      />
 
       {jobUserFilter && visibleJobs.length === 0 && (
         <div className="sp-no-match">
@@ -145,90 +116,23 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
       {activeJobs.map(job => {
         if (jobUserFilter && job.createdBy !== jobUserFilter) { return null; }
         const isExpanded = jobsExpanded[String(job.id)] !== false;
-        const jobIdentifier = (job.batchId ? job.batchId : job.id.replace(/^recovered-/, ''))
-          .replace(/-/g, '')
-          .slice(0, 8)
-          .toUpperCase();
 
         return (
-          <div key={job.id} className="sp-job-card">
-            {/* Collapsible job header */}
-            <div
-              role="button"
-              tabIndex={0}
-              className={`sp-job-header sp-job-header--${isExpanded ? 'expanded' : 'collapsed'}`}
-              onClick={() => toggleJobExpanded(job.id)}
-              onKeyDown={e => {
-                if (e.target !== e.currentTarget) { return; }
-                if (e.key === 'Enter' || e.key === ' ') {
-                  toggleJobExpanded(job.id);
-                }
-              }}
-            >
-              <span className="sp-job-id">{`BR-${jobIdentifier}`}</span>
-              {job.isDry && <Badge variant="warning" pill>DRY RUN</Badge>}
-              <span className="sp-job-meta">
-                <span className="sp-job-meta-date">{fmtDate(job.createdAt)}</span>
-                <span className="sp-job-meta-sep">·</span>
-                <span className="sp-job-meta-user">{job.createdBy}</span>
-              </span>
-              <div className="sp-job-spacer" />
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={e => { e.stopPropagation(); toggleJobExpanded(job.id); }}
-              >
-                {isExpanded ? 'Collapse' : 'Expand'}
-              </Button>
-              {!completedJobIds.has(job.id) && job.batchId && (
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  className="sp-stop-btn"
-                  disabled={cancelBatch.isPending}
-                  onClick={e => {
-                    e.stopPropagation();
-                    // eslint-disable-next-line no-alert
-                    if (!window.confirm('Stop this bulk rerun job? All pending and running courses will be marked as failed.')) { return; }
-                    cancelBatch.mutate(job.batchId);
-                  }}
-                >
-                  Stop
-                </Button>
-              )}
-              <Button
-                variant="tertiary"
-                size="sm"
-                className="sp-dismiss-btn"
-                disabled={!completedJobIds.has(job.id)}
-                onClick={e => { e.stopPropagation(); removeActiveJob(job.id); }}
-              >
-                Dismiss
-              </Button>
-            </div>
-
-            {/*
-              JobProgress is ALWAYS mounted so the simulation keeps running
-              when the header is collapsed. Use display:none, NOT conditional render.
-              key={job.id + "-" + job.isDry} triggers remount when dry->real.
-            */}
-            <div className="sp-job-body" style={{ display: isExpanded ? 'block' : 'none' }}>
-              <JobProgress
-                key={`${job.id }-${ job.isDry}`}
-                cfg={job.cfg}
-                jobId={job.id}
-                batchId={job.batchId ?? null}
-                isPending={(job.isPending ?? false) || executingIds.has(job.id)}
-                isDryRun={job.isDry}
-                createdBy={job.createdBy}
-                createdAt={job.createdAt}
-                onSaveHistory={onSaveHistory}
-                onComplete={() => setCompletedJobIds(prev => new Set([...prev, job.id]))}
-                onNew={() => { softReset(); setBulkView('wizard'); }}
-                onExecute={() => handleExecute(job)}
-              />
-            </div>
-          </div>
+          <JobCard
+            key={job.id}
+            job={job}
+            isExpanded={isExpanded}
+            onToggle={() => toggleJobExpanded(job.id)}
+            isCompleted={completedJobIds.has(job.id)}
+            isExecuting={executingIds.has(job.id)}
+            cancelPending={cancelBatch.isPending}
+            onCancel={() => cancelBatch.mutate(job.batchId)}
+            onDismiss={() => removeActiveJob(job.id)}
+            onSaveHistory={onSaveHistory}
+            onComplete={() => setCompletedJobIds(prev => new Set([...prev, job.id]))}
+            onNew={() => { softReset(); setBulkView('wizard'); }}
+            onExecute={() => handleExecute(job)}
+          />
         );
       })}
     </div>
