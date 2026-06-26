@@ -19,7 +19,9 @@ const useBatchSync = ({
   setProgItems,
   setPhase,
 }) => {
-  const batchQuery = useBatch(batchId || null);
+  // Disable polling in history mode — the full batch detail (including logs) is already
+  // fetched once by HistoryView.getEnriched() before JobProgress mounts.
+  const batchQuery = useBatch(historyEntry ? null : (batchId || null));
 
   // Real-mode: sync batch API response → local item state every 2 s poll.
   // Matches jobs by target_course_key (not index) because the API's default
@@ -93,24 +95,6 @@ const useBatchSync = ({
       }));
     }
   }, [batchQuery.data, isRealMode]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // History mode: overlay live API logs onto the pre-initialised history items.
-  // Handles entries saved before logs were captured and enriches thin log payloads.
-  useEffect(() => {
-    if (!historyEntry || !batchQuery.data) { return; }
-    const batch = batchQuery.data;
-    if (!Array.isArray(batch.jobs) || batch.jobs.length === 0) { return; }
-    setCourseItems(prev => prev.map((item, i) => {
-      const job = batch.jobs[i];
-      if (!job || !Array.isArray(job.logs) || job.logs.length === 0) { return item; }
-      const liveLogs = job.logs.map(l => ({
-        lv: l.level,
-        msg: l.message,
-        ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
-      }));
-      return { ...item, logs: liveLogs };
-    }));
-  }, [batchQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { batchQuery };
 };

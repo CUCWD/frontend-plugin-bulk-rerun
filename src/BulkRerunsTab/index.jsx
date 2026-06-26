@@ -4,10 +4,11 @@
 // content-controlling Stepper; step content is rendered by conditional JSX below it.
 import { useRef } from 'react';
 import PropTypes from 'prop-types';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { getAuthenticatedUser } from '@edx/frontend-platform/auth';
 
 import { useBulkRerunState } from '../state';
+import { useServerHistory } from '../hooks';
 import StepSelect from '../steps/StepSelect';
 import StepConfigure from '../steps/StepConfigure';
 import StepReview from '../steps/StepReview';
@@ -101,6 +102,10 @@ const BulkRerunsTabInner = () => {
 
   const currentUser = (getAuthenticatedUser()?.email) || 'admin@example.org';
 
+  const queryClient = useQueryClient();
+  const serverHistory = useServerHistory();
+  const historyEntries = serverHistory.data ?? [];
+
   const {
     bulkView, setBulkView,
     trackingSubTab, setTrackingSubTab,
@@ -117,8 +122,12 @@ const BulkRerunsTabInner = () => {
     setRunActive,
     softReset,
     saveHistory,
-    history,
   } = useBulkRerunState();
+
+  const handleSaveHistory = (entry) => {
+    saveHistory(entry);
+    queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
+  };
 
   const handleStepSelectNext = (nextRows, mode, nextProg, nextNewOrgs) => {
     setRows(nextRows);
@@ -261,7 +270,7 @@ const BulkRerunsTabInner = () => {
           >
             {[
               { id: 'current', label: 'Current' },
-              { id: 'history', label: `History (${ history.length })` },
+              { id: 'history', label: `History (${ historyEntries.length })` },
             ].map(t => {
               const active = trackingSubTab === t.id && !viewingEntry;
               return (
@@ -294,7 +303,7 @@ const BulkRerunsTabInner = () => {
           {trackingSubTab === 'current' && !viewingEntry && (
             <StepProgress
               onGoWizard={() => setBulkView('wizard')}
-              onSaveHistory={saveHistory}
+              onSaveHistory={handleSaveHistory}
             />
           )}
 
@@ -335,7 +344,7 @@ const BulkRerunsTabInner = () => {
               )
               : (
                 <HistoryView
-                  entries={history}
+                  entries={historyEntries}
                   onView={e => { setViewingEntry(e); scrollToTop(); }}
                   onNewRun={() => { setBulkView('wizard'); softReset(); }}
                 />
