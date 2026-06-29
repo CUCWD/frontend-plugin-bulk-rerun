@@ -170,6 +170,11 @@ export const useBulkRerunState = () => {
         const raw = localStorage.getItem('bulk_rerun_history');
         if (raw) { current = JSON.parse(raw) as HistoryEntry[]; }
       } catch (_e) { /* ignore */ }
+      // Idempotency guard: JobProgress can remount (e.g. user views a history detail
+      // and returns to Current tab) and re-fire this save when the batch query resolves
+      // again. Deduplicate by batchId for real runs, or by local job id for DEMO runs.
+      const isDupe = current.some(e => (entry.batchId ? e.batchId === entry.batchId : e.id === entry.id));
+      if (isDupe) { return; }
       const updated = [entry, ...current].slice(0, 100);
       g.history.set(updated as any);
       try { localStorage.setItem('bulk_rerun_history', JSON.stringify(updated)); } catch (_e) { /* ignore */ }

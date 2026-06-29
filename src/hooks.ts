@@ -50,6 +50,70 @@ export const useCreateBatch = () => useMutation({
   },
 });
 
+const mapApiStatus = (s: string) => {
+  if (s === 'succeeded') { return 'success'; }
+  if (s === 'failed') { return 'failed'; }
+  return 'pending';
+};
+
+const mapDetailJobs = (detail: any) => (detail.jobs || []).map((j: any, i: number) => ({
+  id: j.id ?? i,
+  org: j.org,
+  orgName: j.org_name,
+  name: j.course_name,
+  srcKey: j.src_key || '',
+  targetKey: j.target_course_key || j.target_key || '',
+  status: mapApiStatus(j.status),
+  elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
+  logs: Array.isArray(j.logs)
+    ? j.logs.map((l: any) => ({
+      lv: l.level,
+      msg: l.message,
+      ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+    }))
+    : [],
+  failReason: j.error_message || j.fail_reason || null,
+}));
+
+const mapBatchSummary = (batch: any) => {
+  const cfg = batch.config_json || {};
+  const rows: any[] = cfg.rows || [];
+  const orgsFromRows = [...new Set<string>(rows.map((r: any) => r.org).filter(Boolean))].sort();
+  const orgsFromNewOrgs = (cfg.newOrgs || []).map((o: any) => o.code || '').filter(Boolean);
+  return {
+    id: `recovered-${batch.id}`,
+    batchId: batch.id,
+    createdAt: batch.created_at,
+    createdBy: batch.created_by_username || '',
+    mode: cfg.fromMode || 'course',
+    progName: cfg.prog?.name || null,
+    targetRun: cfg.runId || batch.target_run || '',
+    isDryRun: batch.is_dry_run || false,
+    status: batch.status,
+    orgs: orgsFromRows.length > 0 ? orgsFromRows : orgsFromNewOrgs,
+    cfg: cfg || null,
+    jobs: [],
+  };
+};
+
+export const enrichEntry = (entry: any, detail: any) => ({ ...entry, jobs: mapDetailJobs(detail) });
+
+export const fetchBatchDetail = async (batchId: string) => {
+  const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId));
+  return data;
+};
+
+export const useServerHistory = () => useQuery({
+  queryKey: ['bulk-rerun-history'],
+  queryFn: async () => {
+    const { data } = await getAuthenticatedHttpClient()
+      .get(`${batchesUrl()}?status=${encodeURIComponent('succeeded,failed,partial')}`);
+    return (data as any[]).map(mapBatchSummary);
+  },
+  staleTime: 0,
+  refetchOnWindowFocus: false,
+});
+
 export const useCancelBatch = () => useMutation({
   mutationFn: async (batchId: string) => {
     const { data } = await getAuthenticatedHttpClient()

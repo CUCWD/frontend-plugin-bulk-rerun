@@ -30,7 +30,7 @@ function orgGroups(entry) {
 }
 
 const HistoryEntry = ({
-  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView,
+  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -51,8 +51,10 @@ const HistoryEntry = ({
   };
 
   const { status: st } = entry;
-  const succeeded = (entry.jobs || []).filter(j => j.status === 'success').length;
-  const failed = (entry.jobs || []).length - succeeded;
+  const jobs = entry.jobs || [];
+  const succeeded = jobs.filter(j => j.status === 'success').length;
+  const failed = jobs.length - succeeded;
+  const totalCourses = (entry.cfg?.rows || []).length;
   const groups = orgGroups(entry);
   const jobId = (entry.batchId || entry.id.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase();
 
@@ -75,8 +77,14 @@ const HistoryEntry = ({
             <span>{entry.createdBy}</span>
             <span>{`Run: ${entry.targetRun}`}</span>
             <span>{`${entry.orgs?.length || 0} org${entry.orgs?.length !== 1 ? 's' : ''}`}</span>
-            <span className={succeeded > 0 ? 'hv-entry-ok--has' : 'hv-entry-ok'}>{`${succeeded} ok`}</span>
-            {failed > 0 && <span className="hv-entry-fail">{`${failed} failed`}</span>}
+            {jobs.length > 0 ? (
+              <>
+                <span className={succeeded > 0 ? 'hv-entry-ok--has' : 'hv-entry-ok'}>{`${succeeded} ok`}</span>
+                {failed > 0 && <span className="hv-entry-fail">{`${failed} failed`}</span>}
+              </>
+            ) : (
+              totalCourses > 0 && <span>{`${totalCourses} courses`}</span>
+            )}
           </div>
         </div>
 
@@ -84,8 +92,10 @@ const HistoryEntry = ({
           <Button variant="success" size="sm" onClick={() => copy(buildExport(entry))}>
             {copied ? 'Copied!' : 'Export report'}
           </Button>
-          <Button variant="outline-primary" size="sm" onClick={() => onView(entry)}>View details</Button>
-          <Button variant="outline-primary" size="sm" onClick={onToggle}>
+          <Button variant="outline-primary" size="sm" onClick={() => onView(entry)} disabled={isLoadingDetail}>
+            {isLoadingDetail ? 'Loading…' : 'View details'}
+          </Button>
+          <Button variant="outline-primary" size="sm" onClick={onToggle} disabled={isLoadingDetail}>
             {isOpen ? 'Hide' : 'Summary'}
           </Button>
         </div>
@@ -123,12 +133,20 @@ HistoryEntry.propTypes = {
     targetRun: PropTypes.string,
     orgs: PropTypes.arrayOf(PropTypes.string),
     jobs: PropTypes.arrayOf(PropTypes.shape({})),
+    cfg: PropTypes.shape({
+      rows: PropTypes.arrayOf(PropTypes.shape({})),
+    }),
   }).isRequired,
   isOpen: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
   expandedOrg: PropTypes.objectOf(PropTypes.bool).isRequired,
   setExpandedOrg: PropTypes.func.isRequired,
   onView: PropTypes.func.isRequired,
+  isLoadingDetail: PropTypes.bool,
+};
+
+HistoryEntry.defaultProps = {
+  isLoadingDetail: false,
 };
 
 export default HistoryEntry;
