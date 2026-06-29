@@ -50,7 +50,11 @@ export const useCreateBatch = () => useMutation({
   },
 });
 
-const mapApiStatus = (s: string) => (s === 'succeeded' ? 'success' : s === 'failed' ? 'failed' : 'pending');
+const mapApiStatus = (s: string) => {
+  if (s === 'succeeded') { return 'success'; }
+  if (s === 'failed') { return 'failed'; }
+  return 'pending';
+};
 
 const mapDetailJobs = (detail: any) => (detail.jobs || []).map((j: any, i: number) => ({
   id: j.id ?? i,
@@ -98,11 +102,6 @@ export const fetchBatchDetail = async (batchId: string) => {
   const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId));
   return data;
 };
-
-// kept for internal use (e.g. if full upfront mapping is ever needed again)
-const mapBatchToEntry = (batch: any, detail: any) => ({ ...mapBatchSummary(batch), jobs: mapDetailJobs(detail) });
-// suppress unused warning — intentionally kept as a composable utility
-void mapBatchToEntry;
 
 export const useServerHistory = () => useQuery({
   queryKey: ['bulk-rerun-history'],

@@ -133,6 +133,9 @@ HistoryEntry.propTypes = {
     targetRun: PropTypes.string,
     orgs: PropTypes.arrayOf(PropTypes.string),
     jobs: PropTypes.arrayOf(PropTypes.shape({})),
+    cfg: PropTypes.shape({
+      rows: PropTypes.arrayOf(PropTypes.shape({})),
+    }),
   }).isRequired,
   isOpen: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
