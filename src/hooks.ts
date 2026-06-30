@@ -152,7 +152,7 @@ export const useBatch = (batchId: string | null, pollingEnabled = true) => useQu
     if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
-  refetchInterval: pollingEnabled ? 2000 : false,
+  refetchInterval: pollingEnabled ? 5000 : false,
 });
 
 const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;

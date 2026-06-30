@@ -25,15 +25,11 @@
 //   status:  'pending' | 'running' | 'succeeded' | 'failed' | 'partial'
 //   phase:   0-3 (active phase number) | 4 (complete)
 //
-// NOTE: useJobLogs (see hooks.ts) can stream per-job log lines as they arrive.
-//   Wire it inside a dedicated <JobLogPanel batchJobId={...} /> sub-component
-//   once the backend /jobs/:id/logs/ endpoint is live.
 import { useState, useEffect, useCallback } from 'react';
 import {
   Button, Alert, Spinner, ProgressBar, Badge,
 } from '@openedx/paragon';
 import PropTypes from 'prop-types';
-import { useJobLogs } from '../hooks';
 import { makeKey } from '../utils/courseKeys';
 import { buildExport } from '../utils/buildExport';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
@@ -43,28 +39,6 @@ import useJobSimulation from './useJobSimulation';
 import Phase1OrgGroup from './Phase1OrgGroup';
 import JobActionBar from './JobActionBar';
 import './JobProgress.scss';
-
-// ── Per-job log streamer ───────────────────────────────────────────────────────
-// Renders nothing — polls GET /jobs/:jobId/logs/ every 2 s and pushes
-// parsed log lines to the parent via onLogs whenever the response changes.
-const CourseJobLogStream = ({ jobId, onLogs }) => {
-  const { data } = useJobLogs(jobId);
-  useEffect(() => {
-    if (!Array.isArray(data?.logs)) { return; }
-    const mapped = data.logs.map(l => ({
-      lv: l.level,
-      msg: l.message,
-      ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
-    }));
-    onLogs(jobId, mapped);
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-};
-
-CourseJobLogStream.propTypes = {
-  jobId: PropTypes.string.isRequired,
-  onLogs: PropTypes.func.isRequired,
-};
 
 const histJobStatus = (s) => {
   if (s === 'success') { return 'success'; }
@@ -442,19 +416,6 @@ const JobProgress = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      {/* One log streamer per course job in real mode — renders null, drives log state.
-          Unmounted per-job as soon as that job reaches a terminal status so polling
-          stops immediately rather than waiting for the batch-level status rollup. */}
-      {isRealMode && courseItems.map(item => (
-        item.jobId && item.status !== 'success' && item.status !== 'failed' ? (
-          <CourseJobLogStream
-            key={item.jobId}
-            jobId={item.jobId}
-            onLogs={(id, logs) => setCourseItems(prev => prev.map(it => (it.jobId === id ? { ...it, logs } : it)))}
-          />
-        ) : null
-      ))}
-
       {isDryRun && (
         <Alert variant="info" className="mb-3 py-2">
           <strong className="jp-alert-title">Dry-run mode - no changes were made</strong>
