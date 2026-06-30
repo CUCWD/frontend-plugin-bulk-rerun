@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useBatch } from '../hooks';
 import { makeKey } from '../utils/courseKeys';
 
@@ -19,9 +19,13 @@ const useBatchSync = ({
   setProgItems,
   setPhase,
 }) => {
+  // Once we see a terminal state we flip this to false, which sets
+  // enabled:false on useBatch and immediately stops all API calls.
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+
   // Disable polling in history mode — the full batch detail (including logs) is already
   // fetched once by HistoryView.getEnriched() before JobProgress mounts.
-  const batchQuery = useBatch(historyEntry ? null : (batchId || null));
+  const batchQuery = useBatch(historyEntry ? null : (batchId || null), pollingEnabled);
 
   // Real-mode: sync batch API response → local item state every 2 s poll.
   // Matches jobs by target_course_key (not index) because the API's default
@@ -93,6 +97,16 @@ const useBatchSync = ({
           logs: Array.isArray(pi.logs) && pi.logs.length > 0 ? pi.logs : item.logs,
         };
       }));
+    }
+
+    // Stop polling once the batch or all its jobs reach a terminal state.
+    // This sets enabled:false on useBatch, which immediately prevents any
+    // further API calls without changing the query key (cached data is kept).
+    const statusDone = ['succeeded', 'failed', 'partial'].includes(batch.status);
+    const allJobsDone = Array.isArray(batch.jobs) && batch.jobs.length > 0
+      && batch.jobs.every(j => ['succeeded', 'failed'].includes(j.status));
+    if (statusDone || allJobsDone) {
+      setPollingEnabled(false);
     }
   }, [batchQuery.data, isRealMode]); // eslint-disable-line react-hooks/exhaustive-deps
 

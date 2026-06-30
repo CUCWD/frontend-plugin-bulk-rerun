@@ -276,7 +276,11 @@ const JobProgress = ({
   });
 
   const batchDone = isRealMode
-    ? !!batchQuery.data && ['succeeded', 'failed', 'partial'].includes(batchQuery.data.status)
+    ? !!batchQuery.data && (
+      ['succeeded', 'failed', 'partial'].includes(batchQuery.data.status)
+      || (Array.isArray(batchQuery.data.jobs) && batchQuery.data.jobs.length > 0
+          && batchQuery.data.jobs.every(j => ['succeeded', 'failed'].includes(j.status)))
+    )
     : courseItems.every(it => it.status === 'success' || it.status === 'failed');
 
   const coursesDone = courseItems.every(it => it.status === 'success' || it.status === 'failed');
@@ -438,14 +442,18 @@ const JobProgress = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      {/* One log streamer per course job in real mode — renders null, drives log state */}
-      {isRealMode && courseItems.map(item => (item.jobId ? (
-        <CourseJobLogStream
-          key={item.jobId}
-          jobId={item.jobId}
-          onLogs={(id, logs) => setCourseItems(prev => prev.map(it => (it.jobId === id ? { ...it, logs } : it)))}
-        />
-      ) : null))}
+      {/* One log streamer per course job in real mode — renders null, drives log state.
+          Unmounted per-job as soon as that job reaches a terminal status so polling
+          stops immediately rather than waiting for the batch-level status rollup. */}
+      {isRealMode && courseItems.map(item => (
+        item.jobId && item.status !== 'success' && item.status !== 'failed' ? (
+          <CourseJobLogStream
+            key={item.jobId}
+            jobId={item.jobId}
+            onLogs={(id, logs) => setCourseItems(prev => prev.map(it => (it.jobId === id ? { ...it, logs } : it)))}
+          />
+        ) : null
+      ))}
 
       {isDryRun && (
         <Alert variant="info" className="mb-3 py-2">

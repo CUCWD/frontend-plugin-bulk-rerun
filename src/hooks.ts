@@ -137,24 +137,22 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
   refetchInterval: false,
 });
 
-export const useBatch = (batchId: string | null) => useQuery({
+// pollingEnabled lets useBatchSync disable fetching once it has detected a
+// terminal state, without changing the query key (so cached data is preserved).
+export const useBatch = (batchId: string | null, pollingEnabled = true) => useQuery({
   queryKey: ['bulk-rerun-batch', batchId],
   queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId!));
     return data;
   },
-  enabled: !!batchId,
+  enabled: !!batchId && pollingEnabled,
   // Stop retrying on 404 — the batch was rolled back (e.g. task failed inside
   // an atomic block with CELERY_ALWAYS_EAGER) and will never appear.
   retry: (failureCount: number, error: any) => {
     if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
-  refetchInterval: (query: any) => {
-    if (['succeeded', 'failed', 'partial'].includes(query?.state?.data?.status)) { return false; }
-    if (query?.state?.status === 'error') { return false; }
-    return 2000;
-  },
+  refetchInterval: pollingEnabled ? 2000 : false,
 });
 
 const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;
@@ -228,6 +226,8 @@ export const useSearchEmails = () => useMutation({
   },
 });
 
+// Polling is stopped by CourseJobLogStream unmounting when the job reaches a
+// terminal status — the observer destruction clears the interval timer.
 export const useJobLogs = (jobId: string | null) => useQuery({
   queryKey: ['bulk-rerun-job-logs', jobId],
   queryFn: async () => {
@@ -236,9 +236,5 @@ export const useJobLogs = (jobId: string | null) => useQuery({
     return data;
   },
   enabled: !!jobId,
-  // TanStack Query v5: refetchInterval receives the query object, not data directly.
-  refetchInterval: (query: any) => {
-    if (['succeeded', 'failed'].includes(query?.state?.data?.job_status)) { return false; }
-    return 2000;
-  },
+  refetchInterval: 2000,
 });
