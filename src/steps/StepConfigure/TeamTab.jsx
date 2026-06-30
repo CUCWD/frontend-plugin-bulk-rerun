@@ -57,7 +57,7 @@ const TeamTab = ({
     <div className="bulk-rerun-team-table">
       <DataTable
         columns={teamColumns}
-        data={orgRoster.map(m => ({ ...m, orgCode, apiStatus: emailStatus[m.email.trim()] }))}
+        data={orgRoster.map(m => ({ ...m, orgCode, apiStatus: emailStatus[m.email.trim().toLowerCase()] }))}
         itemCount={orgRoster.length}
         initialTableOptions={{ autoResetSelectedRows: false }}
       >

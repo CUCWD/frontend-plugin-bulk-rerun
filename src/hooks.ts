@@ -220,10 +220,11 @@ export const useCourses = (search = '', options?: { enabled?: boolean }) => useQ
 export const useSearchEmails = () => useMutation({
   mutationFn: async (emails: string[]): Promise<Set<string>> => {
     const lmsUrl = getConfig().LMS_BASE_URL as string;
+    const normalised = emails.map(e => e.toLowerCase());
     const { data } = await getAuthenticatedHttpClient()
-      .post(`${lmsUrl}/api/user/v1/accounts/search_emails`, { emails });
+      .post(`${lmsUrl}/api/user/v1/accounts/search_emails`, { emails: normalised });
     const items: any[] = Array.isArray(data) ? data : [];
-    return new Set(items.map((u: any) => u.email as string));
+    return new Set(items.map((u: any) => (u.email as string).toLowerCase()));
   },
 });
 
