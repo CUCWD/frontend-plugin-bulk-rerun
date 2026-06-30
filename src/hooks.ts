@@ -185,15 +185,22 @@ export type OrgApiItem = {
 
 // Destination orgs — GET ${LMS_BASE_URL}/api/organizations/v0/organizations/
 // Returns objects with both display name and short_name.
+// The endpoint paginates at 20 per page, so we follow `next` until exhausted.
 export const useOrgs = () => useQuery({
   queryKey: ['bulk-rerun-orgs'],
   queryFn: async (): Promise<OrgApiItem[]> => {
     const lmsUrl = getConfig().LMS_BASE_URL as string;
-    const { data } = await getAuthenticatedHttpClient()
-      .get(`${lmsUrl}/api/organizations/v0/organizations/`);
-    const normalised = camelCaseObject(data) as any;
-    const items: any[] = Array.isArray(normalised) ? normalised : (normalised.results ?? []);
-    return items.map((o: any) => ({ name: o.name || o.shortName, shortName: o.shortName }));
+    const client = getAuthenticatedHttpClient();
+    const allItems: any[] = [];
+    let url: string | null = `${lmsUrl}/api/organizations/v0/organizations/`;
+    while (url) {
+      const { data } = await client.get(url);
+      const normalised = camelCaseObject(data) as any;
+      const items: any[] = Array.isArray(normalised) ? normalised : (normalised.results ?? []);
+      allItems.push(...items);
+      url = Array.isArray(normalised) ? null : (normalised.next ?? null);
+    }
+    return allItems.map((o: any) => ({ name: o.name || o.shortName, shortName: o.shortName }));
   },
   staleTime: 300_000,
 });
