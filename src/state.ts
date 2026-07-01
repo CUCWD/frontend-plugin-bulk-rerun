@@ -64,9 +64,26 @@ const loadHistory = (): HistoryEntry[] => {
   return [];
 };
 
+const VALID_BULK_VIEWS = ['wizard', 'tracking'];
+const VALID_TRACKING_TABS = ['current', 'history'];
+
+const loadSession = () => {
+  try {
+    const bulkView = sessionStorage.getItem('bulk_rerun_view');
+    const trackingSubTab = sessionStorage.getItem('bulk_rerun_tab');
+    return {
+      bulkView: bulkView && VALID_BULK_VIEWS.includes(bulkView) ? bulkView : 'wizard',
+      trackingSubTab: trackingSubTab && VALID_TRACKING_TABS.includes(trackingSubTab) ? trackingSubTab : 'current',
+    };
+  } catch (_e) { /* ignore */ }
+  return { bulkView: 'wizard', trackingSubTab: 'current' };
+};
+
+const { bulkView: savedView, trackingSubTab: savedTab } = loadSession();
+
 const INITIAL: BulkRerunState = {
-  bulkView: 'wizard',
-  trackingSubTab: 'current',
+  bulkView: savedView,
+  trackingSubTab: savedTab,
   step: 0,
   viewingEntry: null,
 
@@ -93,9 +110,15 @@ export const useBulkRerunState = () => {
   return {
     // -- navigation --
     bulkView: s.bulkView.get() as string,
-    setBulkView: (v: string) => g.bulkView.set(v),
+    setBulkView: (v: string) => {
+      g.bulkView.set(v);
+      try { sessionStorage.setItem('bulk_rerun_view', v); } catch (_e) { /* ignore */ }
+    },
     trackingSubTab: s.trackingSubTab.get() as string,
-    setTrackingSubTab: (v: string) => g.trackingSubTab.set(v),
+    setTrackingSubTab: (v: string) => {
+      g.trackingSubTab.set(v);
+      try { sessionStorage.setItem('bulk_rerun_tab', v); } catch (_e) { /* ignore */ }
+    },
     step: s.step.get() as number,
     setStep: (n: number) => g.step.set(n),
     viewingEntry: s.viewingEntry.get({ noproxy: true }) as HistoryEntry | null,
