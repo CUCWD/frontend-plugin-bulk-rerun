@@ -2,7 +2,8 @@
 // useValidateCourseKeys — POST /validate/            checks which target keys already exist on the platform.
 // useCreateBatch        — POST /batches/             submits a new job to the backend.
 // useCancelBatch        — POST /batches/:id/cancel/  cancels a pending/running batch.
-// useBatch              — GET  /batches/:id/         polls every 2 s; stops when the job reaches a terminal status.
+// useBatch              — GET  /batches/:id/         polls every 5 s (include_logs=false — status only);
+//                                                    stops when the job reaches a terminal status.
 // useRunningBatches     — GET  /batches/?status=...  fetches the caller's in-progress batches; used to recover
 //                                                    active jobs after a page refresh or on a different device.
 // useOrgs               — GET  /organizations        fetches org short-names from Studio.
@@ -139,10 +140,13 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
 
 // pollingEnabled lets useBatchSync disable fetching once it has detected a
 // terminal state, without changing the query key (so cached data is preserved).
-export const useBatch = (batchId: string | null, pollingEnabled = true) => useQuery({
-  queryKey: ['bulk-rerun-batch', batchId],
+// includeLogs=false requests the constant-size status payload (no nested log
+// lines); log lines are then fetched incrementally per job via fetchJobLogs.
+export const useBatch = (batchId: string | null, pollingEnabled = true, includeLogs = true) => useQuery({
+  queryKey: ['bulk-rerun-batch', batchId, includeLogs],
   queryFn: async () => {
-    const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId!));
+    const { data } = await getAuthenticatedHttpClient()
+      .get(`${batchUrl(batchId!)}${includeLogs ? '' : '?include_logs=false'}`);
     return data;
   },
   enabled: !!batchId && pollingEnabled,
@@ -232,6 +236,14 @@ export const useSearchEmails = () => useMutation({
     return new Set(items.map((u: any) => (u.email as string).toLowerCase()));
   },
 });
+
+// One-shot incremental log fetch — returns { job_id, job_status, logs } with
+// only the lines whose id > since (all lines when since is 0/undefined).
+// Used by useBatchSync's log poller so each tick transfers only new lines.
+export const fetchJobLogs = async (jobId: string, since?: number) => {
+  const { data } = await getAuthenticatedHttpClient().get(logsUrl(jobId, since));
+  return data as { job_id: string; job_status: string; logs: any[] };
+};
 
 // Polling is stopped by CourseJobLogStream unmounting when the job reaches a
 // terminal status — the observer destruction clears the interval timer.
