@@ -198,6 +198,9 @@ export const useOrgs = () => useQuery({
     const allItems: any[] = [];
     let url: string | null = `${lmsUrl}/api/organizations/v0/organizations/`;
     while (url) {
+      // Pages must be fetched sequentially: each response's `next` URL is the
+      // only way to reach the following page, so there is nothing to parallelise.
+      // eslint-disable-next-line no-await-in-loop
       const { data } = await client.get(url);
       const normalised = camelCaseObject(data) as any;
       const items: any[] = Array.isArray(normalised) ? normalised : (normalised.results ?? []);
