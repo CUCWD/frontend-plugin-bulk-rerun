@@ -167,13 +167,13 @@ const StepConfigure = ({
   const teamInvalid = Object.values(orgRosters).flat().filter(m => {
     if (!m.email) { return true; }
     if (!m.email.includes('@')) { return true; }
-    const s = emailStatus[m.email.trim()];
+    const s = emailStatus[m.email.trim().toLowerCase()];
     return s === 'not_found';
   }).length;
 
   const teamChecking = Object.values(orgRosters).flat().filter(m => {
     if (!m.email || !m.email.includes('@')) { return false; }
-    const s = emailStatus[m.email.trim()];
+    const s = emailStatus[m.email.trim().toLowerCase()];
     return s === 'checking' || s === undefined;
   }).length;
 
@@ -238,13 +238,13 @@ const StepConfigure = ({
 
   // ── Debounced email account validation ────────────────────────────────────
   const emailSig = JSON.stringify(
-    Object.values(orgRosters).flat().map(m => m.email.trim()).filter(Boolean)
+    Object.values(orgRosters).flat().map(m => m.email.trim().toLowerCase()).filter(Boolean)
       .sort(),
   );
   useEffect(() => {
     const emails = [...new Set(
       Object.values(orgRosters).flat()
-        .map(m => m.email.trim())
+        .map(m => m.email.trim().toLowerCase())
         .filter(e => e && e.includes('@')),
     )];
     if (emails.length === 0) { return undefined; }

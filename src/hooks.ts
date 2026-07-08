@@ -2,7 +2,8 @@
 // useValidateCourseKeys — POST /validate/            checks which target keys already exist on the platform.
 // useCreateBatch        — POST /batches/             submits a new job to the backend.
 // useCancelBatch        — POST /batches/:id/cancel/  cancels a pending/running batch.
-// useBatch              — GET  /batches/:id/         polls every 2 s; stops when the job reaches a terminal status.
+// useBatch              — GET  /batches/:id/         polls every 5 s (include_logs=false — status only);
+//                                                    stops when the job reaches a terminal status.
 // useRunningBatches     — GET  /batches/?status=...  fetches the caller's in-progress batches; used to recover
 //                                                    active jobs after a page refresh or on a different device.
 // useOrgs               — GET  /organizations        fetches org short-names from Studio.
@@ -137,24 +138,25 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
   refetchInterval: false,
 });
 
-export const useBatch = (batchId: string | null) => useQuery({
-  queryKey: ['bulk-rerun-batch', batchId],
+// pollingEnabled lets useBatchSync disable fetching once it has detected a
+// terminal state, without changing the query key (so cached data is preserved).
+// includeLogs=false requests the constant-size status payload (no nested log
+// lines); log lines are then fetched incrementally per job via fetchJobLogs.
+export const useBatch = (batchId: string | null, pollingEnabled = true, includeLogs = true) => useQuery({
+  queryKey: ['bulk-rerun-batch', batchId, includeLogs],
   queryFn: async () => {
-    const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId!));
+    const { data } = await getAuthenticatedHttpClient()
+      .get(`${batchUrl(batchId!)}${includeLogs ? '' : '?include_logs=false'}`);
     return data;
   },
-  enabled: !!batchId,
+  enabled: !!batchId && pollingEnabled,
   // Stop retrying on 404 — the batch was rolled back (e.g. task failed inside
   // an atomic block with CELERY_ALWAYS_EAGER) and will never appear.
   retry: (failureCount: number, error: any) => {
     if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
-  refetchInterval: (query: any) => {
-    if (['succeeded', 'failed', 'partial'].includes(query?.state?.data?.status)) { return false; }
-    if (query?.state?.status === 'error') { return false; }
-    return 2000;
-  },
+  refetchInterval: pollingEnabled ? 5000 : false,
 });
 
 const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;
@@ -187,15 +189,25 @@ export type OrgApiItem = {
 
 // Destination orgs — GET ${LMS_BASE_URL}/api/organizations/v0/organizations/
 // Returns objects with both display name and short_name.
+// The endpoint paginates at 20 per page, so we follow `next` until exhausted.
 export const useOrgs = () => useQuery({
   queryKey: ['bulk-rerun-orgs'],
   queryFn: async (): Promise<OrgApiItem[]> => {
     const lmsUrl = getConfig().LMS_BASE_URL as string;
-    const { data } = await getAuthenticatedHttpClient()
-      .get(`${lmsUrl}/api/organizations/v0/organizations/`);
-    const normalised = camelCaseObject(data) as any;
-    const items: any[] = Array.isArray(normalised) ? normalised : (normalised.results ?? []);
-    return items.map((o: any) => ({ name: o.name || o.shortName, shortName: o.shortName }));
+    const client = getAuthenticatedHttpClient();
+    const allItems: any[] = [];
+    let url: string | null = `${lmsUrl}/api/organizations/v0/organizations/`;
+    while (url) {
+      // Pages must be fetched sequentially: each response's `next` URL is the
+      // only way to reach the following page, so there is nothing to parallelise.
+      // eslint-disable-next-line no-await-in-loop
+      const { data } = await client.get(url);
+      const normalised = camelCaseObject(data) as any;
+      const items: any[] = Array.isArray(normalised) ? normalised : (normalised.results ?? []);
+      allItems.push(...items);
+      url = Array.isArray(normalised) ? null : (normalised.next ?? null);
+    }
+    return allItems.map((o: any) => ({ name: o.name || o.shortName, shortName: o.shortName }));
   },
   staleTime: 300_000,
 });
@@ -220,13 +232,24 @@ export const useCourses = (search = '', options?: { enabled?: boolean }) => useQ
 export const useSearchEmails = () => useMutation({
   mutationFn: async (emails: string[]): Promise<Set<string>> => {
     const lmsUrl = getConfig().LMS_BASE_URL as string;
+    const normalised = emails.map(e => e.toLowerCase());
     const { data } = await getAuthenticatedHttpClient()
-      .post(`${lmsUrl}/api/user/v1/accounts/search_emails`, { emails });
+      .post(`${lmsUrl}/api/user/v1/accounts/search_emails`, { emails: normalised });
     const items: any[] = Array.isArray(data) ? data : [];
-    return new Set(items.map((u: any) => u.email as string));
+    return new Set(items.map((u: any) => (u.email as string).toLowerCase()));
   },
 });
 
+// One-shot incremental log fetch — returns { job_id, job_status, logs } with
+// only the lines whose id > since (all lines when since is 0/undefined).
+// Used by useBatchSync's log poller so each tick transfers only new lines.
+export const fetchJobLogs = async (jobId: string, since?: number) => {
+  const { data } = await getAuthenticatedHttpClient().get(logsUrl(jobId, since));
+  return data as { job_id: string; job_status: string; logs: any[] };
+};
+
+// Polling is stopped by CourseJobLogStream unmounting when the job reaches a
+// terminal status — the observer destruction clears the interval timer.
 export const useJobLogs = (jobId: string | null) => useQuery({
   queryKey: ['bulk-rerun-job-logs', jobId],
   queryFn: async () => {
@@ -235,9 +258,5 @@ export const useJobLogs = (jobId: string | null) => useQuery({
     return data;
   },
   enabled: !!jobId,
-  // TanStack Query v5: refetchInterval receives the query object, not data directly.
-  refetchInterval: (query: any) => {
-    if (['succeeded', 'failed'].includes(query?.state?.data?.job_status)) { return false; }
-    return 2000;
-  },
+  refetchInterval: 2000,
 });
