@@ -4,8 +4,8 @@
 // useCancelBatch        — POST /batches/:id/cancel/  cancels a pending/running batch.
 // useBatch              — GET  /batches/:id/         polls every 5 s (include_logs=false — status only);
 //                                                    stops when the job reaches a terminal status.
-// useRunningBatches     — GET  /batches/?status=...  fetches the caller's in-progress batches; used to recover
-//                                                    active jobs after a page refresh or on a different device.
+// useRunningBatches     — GET  /batches/?status=...  fetches ALL users' in-progress batches (shared tracking
+//                                                    view); polled so other operators' batches appear live.
 // useOrgs               — GET  /organizations        fetches org short-names from Studio.
 // usePrograms           — GET  discovery /api/v1/programs/?status=active  fetches active programs.
 // useCourses            — GET  /courses              fetches up to 500 DEMO-run live courses.
@@ -123,9 +123,10 @@ export const useCancelBatch = () => useMutation({
   },
 });
 
-// Fetch the current user's batches filtered by status.
-// Fetched once on mount (no polling) — used by StepProgress to restore in-flight
-// jobs after a page refresh or when navigating from a different device/tab.
+// Fetch in-flight batches for ALL users, filtered by status — the tracking page
+// is a shared view of every operator's runs. Used by StepProgress to restore
+// jobs after a page refresh and to surface batches started by other users.
+// Polled every 15 s so another operator's new batch appears without a reload.
 export const useRunningBatches = (statusFilter = 'running,pending') => useQuery({
   queryKey: ['bulk-rerun-batches-running', statusFilter],
   queryFn: async () => {
@@ -133,9 +134,9 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
       .get(`${batchesUrl()}?status=${encodeURIComponent(statusFilter)}`);
     return data as any[];
   },
-  staleTime: Infinity,
-  refetchOnWindowFocus: false,
-  refetchInterval: false,
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+  refetchInterval: 15000,
 });
 
 // pollingEnabled lets useBatchSync disable fetching once it has detected a
