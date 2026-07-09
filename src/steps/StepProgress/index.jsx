@@ -3,11 +3,10 @@
 // render) so the simulation timer keeps running when a job card is collapsed.
 // key={job.id + '-' + job.isDry} remounts JobProgress when a dry-run is promoted to real.
 //
-// On mount, useRunningBatches fetches the caller's in-progress batches from the server
-// and adds any that aren't already tracked (recovering from page refresh / cross-device).
-import {
-  useState, useCallback, useEffect, useRef,
-} from 'react';
+// useRunningBatches polls all users' in-progress batches from the server and merges
+// any that aren't already tracked — recovering from page refresh / cross-device, and
+// surfacing batches started by other users (shared tracking view).
+import { useState, useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Button } from '@openedx/paragon';
 
@@ -42,15 +41,18 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   // Dismiss is disabled until a job's JobProgress fires onComplete.
   const [completedJobIds, setCompletedJobIds] = useState(new Set());
 
-  // Restore in-flight batches from the server on first render.
-  // This handles page refresh, cross-tab, and cross-device access.
-  // hasRecoveredRef prevents double-adding if the query re-fires.
+  // Merge server-side in-flight batches into local state on every poll result.
+  // This handles page refresh, cross-tab/device access, AND batches started by
+  // OTHER users while this page is open (the list endpoint returns all users'
+  // batches). Deduped by batchId so re-fires are idempotent. Skipped while any
+  // local POST /batches/ is still pending — that job's batchId is unknown, so
+  // the just-created server row could otherwise be added a second time as a
+  // "recovered" card.
   const { data: runningBatches } = useRunningBatches();
-  const hasRecoveredRef = useRef(false);
 
   useEffect(() => {
-    if (!runningBatches || hasRecoveredRef.current) { return; }
-    hasRecoveredRef.current = true;
+    if (!runningBatches) { return; }
+    if (activeJobs.some(j => j.isPending)) { return; }
 
     const existingBatchIds = new Set(activeJobs.map(j => j.batchId).filter(Boolean));
     const toRecover = runningBatches
@@ -65,10 +67,9 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
         createdBy: batch.created_by_username || '',
       }));
     if (toRecover.length > 0) { addActiveJobs(toRecover); }
-  // activeJobs is intentionally read as a closure snapshot at first-recovery time.
-  // hasRecoveredRef guards against re-running as activeJobs mutates.
+  // addActiveJobs is a stable module-level writer; only data deps re-run this.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runningBatches]);
+  }, [runningBatches, activeJobs]);
 
   const handleExecute = useCallback((job) => {
     setExecutingIds(prev => new Set([...prev, job.id]));
