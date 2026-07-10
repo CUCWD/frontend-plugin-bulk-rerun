@@ -23,6 +23,7 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
     activeJobs,
     addActiveJobs,
     removeActiveJob,
+    markActiveJobDone,
     promoteJobToReal,
     jobsExpanded,
     toggleJobExpanded,
@@ -36,10 +37,9 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   const cancelBatch = useCancelBatch();
   // Tracks job IDs currently being promoted from dry-run to real so we can
   // show a pending state on the card while the POST /batches/ is in flight.
+  // Terminal state lives on the job itself (job.done, see markActiveJobDone)
+  // so counts and the Dismiss button survive navigating away and back.
   const [executingIds, setExecutingIds] = useState(new Set());
-  // Tracks which job IDs have reached a terminal state (succeeded/failed/partial).
-  // Dismiss is disabled until a job's JobProgress fires onComplete.
-  const [completedJobIds, setCompletedJobIds] = useState(new Set());
 
   // Merge server-side in-flight batches into local state on every poll result.
   // This handles page refresh, cross-tab/device access, AND batches started by
@@ -52,7 +52,11 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
 
   useEffect(() => {
     if (!runningBatches) { return; }
-    if (activeJobs.some(j => j.isPending)) { return; }
+    // Skip while any batch-creating POST is in flight — either a wizard
+    // submission (isPending) or a dry-run promotion (executingIds). In both
+    // windows the new server batch has no matching local batchId yet, so
+    // merging would add it a second time as a duplicate card.
+    if (activeJobs.some(j => j.isPending) || executingIds.size > 0) { return; }
 
     const existingBatchIds = new Set(activeJobs.map(j => j.batchId).filter(Boolean));
     const toRecover = runningBatches
@@ -69,7 +73,7 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
     if (toRecover.length > 0) { addActiveJobs(toRecover); }
   // addActiveJobs is a stable module-level writer; only data deps re-run this.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runningBatches, activeJobs]);
+  }, [runningBatches, activeJobs, executingIds]);
 
   const handleExecute = useCallback((job) => {
     setExecutingIds(prev => new Set([...prev, job.id]));
@@ -99,7 +103,7 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   return (
     <div>
       <FilterBar
-        activeJobs={activeJobs}
+        activeCount={activeJobs.filter(j => !j.done).length}
         jobUserFilter={jobUserFilter}
         setJobUserFilter={setJobUserFilter}
         uniqueUsers={uniqueUsers}
@@ -124,13 +128,13 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
             job={job}
             isExpanded={isExpanded}
             onToggle={() => toggleJobExpanded(job.id)}
-            isCompleted={completedJobIds.has(job.id)}
+            isCompleted={!!job.done}
             isExecuting={executingIds.has(job.id)}
             cancelPending={cancelBatch.isPending}
             onCancel={() => cancelBatch.mutate(job.batchId)}
             onDismiss={() => removeActiveJob(job.id)}
             onSaveHistory={onSaveHistory}
-            onComplete={() => setCompletedJobIds(prev => new Set([...prev, job.id]))}
+            onComplete={() => markActiveJobDone(job.id)}
             onNew={() => { softReset(); setBulkView('wizard'); }}
             onExecute={() => handleExecute(job)}
           />

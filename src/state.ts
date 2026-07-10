@@ -19,6 +19,8 @@ export type ActiveJob = {
   isPending: boolean; // true while waiting for POST /batches/ to return
   createdAt: string;
   createdBy: string;
+  done?: boolean; // set when the batch reaches a terminal state; the card stays
+  //                 visible until dismissed but no longer counts as "active"
 };
 
 export type HistoryEntry = {
@@ -147,6 +149,13 @@ export const useBulkRerunState = () => {
     },
     removeActiveJob: (id: string) => {
       g.activeJobs.set((g.activeJobs.get({ noproxy: true }) as ActiveJob[]).filter(j => j.id !== id));
+    },
+    // Marks a job's batch as terminal. Stored on the job (not component state) so
+    // the "N active runs" count and the Dismiss button survive tab navigation.
+    markActiveJobDone: (id: string) => {
+      g.activeJobs.set(
+        (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(j => (j.id === id ? { ...j, done: true } : j)),
+      );
     },
     flipActiveJobDry: (id: string) => {
       g.activeJobs.set(
