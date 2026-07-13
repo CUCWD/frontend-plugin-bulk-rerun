@@ -13,6 +13,7 @@
 import { getConfig, camelCaseObject } from '@edx/frontend-platform';
 import { getAuthenticatedHttpClient } from '@edx/frontend-platform/auth';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { makeKey, parseKeyParts } from './utils/courseKeys';
 
 export type CourseApiItem = {
   courseKey: string;
@@ -57,24 +58,40 @@ const mapApiStatus = (s: string) => {
   return 'pending';
 };
 
-const mapDetailJobs = (detail: any) => (detail.jobs || []).map((j: any, i: number) => ({
-  id: j.id ?? i,
-  org: j.org,
-  orgName: j.org_name,
-  name: j.course_name,
-  srcKey: j.src_key || '',
-  targetKey: j.target_course_key || j.target_key || '',
-  status: mapApiStatus(j.status),
-  elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
-  logs: Array.isArray(j.logs)
-    ? j.logs.map((l: any) => ({
-      lv: l.level,
-      msg: l.message,
-      ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
-    }))
-    : [],
-  failReason: j.error_message || j.fail_reason || null,
-}));
+// The batch-detail API's job payload carries only course keys, status, timing,
+// and logs — org and display name are not job model fields. Derive the org from
+// the target key (course-v1:ORG+NUM+RUN) and look display names up in the
+// entry's config snapshot, mirroring what JobProgress does for its live view.
+// Without this, exports/summaries group jobs under an undefined org and every
+// org section renders empty.
+const mapDetailJobs = (detail: any, entry?: any) => {
+  const nameByTarget: Record<string, string> = {};
+  ((entry?.cfg?.rows ?? []) as any[]).forEach((r: any) => {
+    nameByTarget[makeKey(r.org, r.num, r.run)] = r.name;
+  });
+  return (detail.jobs || []).map((j: any, i: number) => {
+    const targetKey = j.target_course_key || j.target_key || '';
+    const org = j.org || parseKeyParts(targetKey).org;
+    return {
+      id: j.id ?? i,
+      org,
+      orgName: j.org_name || org,
+      name: j.course_name || nameByTarget[targetKey] || '',
+      srcKey: j.src_key || j.source_course_key || '',
+      targetKey,
+      status: mapApiStatus(j.status),
+      elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
+      logs: Array.isArray(j.logs)
+        ? j.logs.map((l: any) => ({
+          lv: l.level,
+          msg: l.message,
+          ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+        }))
+        : [],
+      failReason: j.error_message || j.fail_reason || null,
+    };
+  });
+};
 
 const mapBatchSummary = (batch: any) => {
   const cfg = batch.config_json || {};
@@ -97,7 +114,7 @@ const mapBatchSummary = (batch: any) => {
   };
 };
 
-export const enrichEntry = (entry: any, detail: any) => ({ ...entry, jobs: mapDetailJobs(detail) });
+export const enrichEntry = (entry: any, detail: any) => ({ ...entry, jobs: mapDetailJobs(detail, entry) });
 
 export const fetchBatchDetail = async (batchId: string) => {
   const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId));
