@@ -30,7 +30,7 @@ function orgGroups(entry) {
 }
 
 const HistoryEntry = ({
-  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail,
+  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail, getEnriched,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -89,7 +89,16 @@ const HistoryEntry = ({
         </div>
 
         <div className="hv-entry-actions">
-          <Button variant="success" size="sm" onClick={() => copy(buildExport(entry))}>
+          {/* Fresh list entries are lightweight summaries (jobs: []) — fetch the
+              full batch detail (jobs + logs) before building the export, so the
+              report includes logs even when the entry was never viewed/expanded.
+              getEnriched caches, so repeat exports don't re-fetch. */}
+          <Button
+            variant="success"
+            size="sm"
+            disabled={isLoadingDetail}
+            onClick={async () => copy(buildExport(await getEnriched(entry)))}
+          >
             {copied ? 'Copied!' : 'Export report'}
           </Button>
           <Button variant="outline-primary" size="sm" onClick={() => onView(entry)} disabled={isLoadingDetail}>
@@ -143,6 +152,7 @@ HistoryEntry.propTypes = {
   setExpandedOrg: PropTypes.func.isRequired,
   onView: PropTypes.func.isRequired,
   isLoadingDetail: PropTypes.bool,
+  getEnriched: PropTypes.func.isRequired,
 };
 
 HistoryEntry.defaultProps = {

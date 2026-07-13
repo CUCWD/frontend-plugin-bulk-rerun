@@ -111,6 +111,7 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
             expandedOrg={expandedOrg}
             setExpandedOrg={setExpandedOrg}
             onView={handleView}
+            getEnriched={getEnriched}
           />
         );
       })}
