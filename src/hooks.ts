@@ -111,6 +111,9 @@ const mapBatchSummary = (batch: any) => {
     orgs: orgsFromRows.length > 0 ? orgsFromRows : orgsFromNewOrgs,
     cfg: cfg || null,
     jobs: [],
+    rollbackStatus: batch.rollback_status || 'none',
+    rolledBackAt: batch.rolled_back_at || null,
+    createdCourses: batch.created_courses ?? 0,
   };
 };
 
@@ -132,10 +135,45 @@ export const useServerHistory = () => useQuery({
   refetchOnWindowFocus: false,
 });
 
+// Poll rollback progress for JUST the given batches (normally one) instead of
+// re-fetching the whole history list: the list payload carries every batch's
+// config_json snapshot, while the detail endpoint with include_logs=false is
+// constant-size. Returns { [batchId]: rollback_status }. HistoryView watches
+// the result and refreshes the history list once when a rollback terminates.
+export const useRollbackProgress = (batchIds: string[]) => useQuery({
+  queryKey: ['bulk-rerun-rollback-progress', [...batchIds].sort()],
+  queryFn: async () => {
+    const client = getAuthenticatedHttpClient();
+    const results = await Promise.all(
+      batchIds.map(id => client.get(`${batchUrl(id)}?include_logs=false`).then(r => r.data)),
+    );
+    return Object.fromEntries(
+      results.map((b: any) => [b.id, b.rollback_status || 'none']),
+    ) as Record<string, string>;
+  },
+  enabled: batchIds.length > 0,
+  refetchInterval: 5000,
+  refetchOnWindowFocus: false,
+});
+
+// Stop always rolls back: cancelling a batch also deletes every course it
+// created so far (backend deletes only course_created=True jobs), so the
+// user can immediately resubmit the batch with corrected settings.
 export const useCancelBatch = () => useMutation({
   mutationFn: async (batchId: string) => {
     const { data } = await getAuthenticatedHttpClient()
-      .post(`${batchUrl(batchId)}cancel/`);
+      .post(`${batchUrl(batchId)}cancel/`, { rollback: true });
+    return data;
+  },
+});
+
+// Roll back a terminal batch from the History tab — deletes the courses the
+// batch created (never courses it merely adopted). Returns 202; the history
+// list is refetched to pick up rollback_status transitions.
+export const useRollbackBatch = () => useMutation({
+  mutationFn: async (batchId: string) => {
+    const { data } = await getAuthenticatedHttpClient()
+      .post(`${batchUrl(batchId)}rollback/`);
     return data;
   },
 });
