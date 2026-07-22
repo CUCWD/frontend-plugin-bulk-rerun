@@ -45,7 +45,7 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
   // rollbackStatus flips to pending immediately (the query then self-polls
   // until the rollback reaches a terminal state — see useServerHistory).
   const handleRollback = async (entry) => {
-    if (!entry.batchId) { return; }
+    if (!onRollback(entry)) { return; }
     try {
       await rollbackBatch.mutateAsync(entry.batchId);
     } catch (e) {

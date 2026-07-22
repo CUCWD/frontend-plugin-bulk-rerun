@@ -79,6 +79,11 @@ const mapDetailJobs = (detail: any, entry?: any) => {
       name: j.course_name || nameByTarget[targetKey] || '',
       srcKey: j.src_key || j.source_course_key || '',
       targetKey,
+      position: j.position ?? i,
+      // Rollback bookkeeping the History summary + Job details use to render
+      // per-course rollback chips. Both are plain booleans from the API.
+      courseCreated: !!j.course_created,
+      rolledBack: !!j.rolled_back,
       status: mapApiStatus(j.status),
       elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
       logs: Array.isArray(j.logs)

@@ -3,7 +3,7 @@ import { Spinner } from '@openedx/paragon';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
 
 const Phase1OrgGroup = ({
-  orgCode, orgCourseItems, isOrgOpen, onToggle,
+  orgCode, orgCourseItems, isOrgOpen, onToggle, rollbackStatus, deletingId,
 }) => {
   const orgDone = orgCourseItems.filter(it => it.status === 'success').length;
   const orgRunning = orgCourseItems.filter(it => it.status === 'running').length;
@@ -11,6 +11,11 @@ const Phase1OrgGroup = ({
   const orgName = orgCourseItems[0]?.r?.orgName || orgCode;
   let stateMod = '';
   if (allDone) { stateMod = '--done'; } else if (orgRunning > 0) { stateMod = '--running'; }
+
+  // Rollback tally for this org, shown only once a rollback has been requested.
+  const rbActive = rollbackStatus && rollbackStatus !== 'none';
+  const rbCreated = orgCourseItems.filter(it => it.courseCreated).length;
+  const rbRemoved = orgCourseItems.filter(it => it.courseCreated && it.rolledBack).length;
 
   return (
     <div className="jp-org-item">
@@ -43,11 +48,14 @@ const Phase1OrgGroup = ({
           {`${orgDone}/${orgCourseItems.length} complete${orgRunning > 0 ? ` - ${orgRunning} running` : ''}`}
         </span>
         <div className="jp-org-spacer" />
+        {rbActive && rbCreated > 0 && (
+          <span className="jp-org-rb">{`${rbRemoved}/${rbCreated} removed`}</span>
+        )}
         <span className="jp-org-toggle">{isOrgOpen ? '▲' : '▼'}</span>
       </div>
       {isOrgOpen && (
         <div className="jp-org-rows">
-          <PhaseItemRows items={orgCourseItems} />
+          <PhaseItemRows items={orgCourseItems} rollbackStatus={rollbackStatus} deletingId={deletingId} />
         </div>
       )}
     </div>
@@ -63,6 +71,13 @@ Phase1OrgGroup.propTypes = {
   })).isRequired,
   isOrgOpen: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,
+  rollbackStatus: PropTypes.string,
+  deletingId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};
+
+Phase1OrgGroup.defaultProps = {
+  rollbackStatus: 'none',
+  deletingId: null,
 };
 
 export default Phase1OrgGroup;

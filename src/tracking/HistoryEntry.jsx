@@ -2,6 +2,7 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Button, Badge } from '@openedx/paragon';
 import { buildExport } from '../utils/buildExport';
+import { deletingJobId } from '../utils/rollbackState';
 import HistoryOrgGroup from './HistoryOrgGroup';
 
 const fmtDateShort = iso => {
@@ -71,6 +72,9 @@ const HistoryEntry = ({
   // rollback support have createdCourses 0 and simply never show the button.
   const rollbackStatus = entry.rollbackStatus || 'none';
   const rollbackInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
+  // Which course is being deleted right now (sequential, position order); null
+  // unless a rollback is actively running. entry.jobs is in position order.
+  const deletingId = deletingJobId(jobs, rollbackStatus);
   const rollbackBadge = ROLLBACK_BADGE[rollbackStatus];
   const canRollback = rollbackStatus === 'none'
     && !entry.isDryRun
@@ -164,6 +168,8 @@ const HistoryEntry = ({
                 group={g}
                 isOrgOpen={expandedOrg[gKey] !== false}
                 onToggle={() => setExpandedOrg(p => ({ ...p, [gKey]: p[gKey] === false }))}
+                rollbackStatus={rollbackStatus}
+                deletingId={deletingId}
               />
             );
           })}

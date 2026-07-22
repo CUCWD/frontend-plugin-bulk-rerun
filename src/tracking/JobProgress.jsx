@@ -32,6 +32,7 @@ import {
 import PropTypes from 'prop-types';
 import { makeKey } from '../utils/courseKeys';
 import { buildExport } from '../utils/buildExport';
+import { deletingJobId } from '../utils/rollbackState';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
 import useBatchSync from './useBatchSync';
@@ -100,6 +101,7 @@ const historyEntryPropType = PropTypes.shape({
   targetRun: PropTypes.string,
   isDryRun: PropTypes.bool,
   status: PropTypes.string,
+  rollbackStatus: PropTypes.string,
   orgs: PropTypes.arrayOf(PropTypes.string),
   jobs: PropTypes.arrayOf(historyJobPropType),
 });
@@ -178,6 +180,9 @@ const JobProgress = ({
           logs: histLogs(j),
           elapsed: j.elapsed || '',
           t0: 0,
+          position: j.position ?? i,
+          courseCreated: !!j.courseCreated,
+          rolledBack: !!j.rolledBack,
         };
       });
     }
@@ -387,10 +392,30 @@ const JobProgress = ({
     return '#c8c8c8';
   };
 
+  // ── Rollback display state (History detail view) ──────────────────────────
+  // All derived from fields the batch-detail API already returns; nothing here
+  // runs unless a rollback has been requested for this batch.
+  const rollbackStatus = historyEntry?.rollbackStatus || 'none';
+  const rollbackActive = rollbackStatus !== 'none';
+  const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
+  const rbCreated = courseItems.filter(it => it.courseCreated);
+  const rbRemoved = rbCreated.filter(it => it.rolledBack).length;
+  const rbDeletingId = deletingJobId(courseItems, rollbackStatus);
+  const rbPct = rbCreated.length > 0 ? Math.round((rbRemoved / rbCreated.length) * 100) : 0;
+  const ROLLBACK_PILL = {
+    pending: { label: 'ROLLING BACK…', variant: 'primary' },
+    running: { label: 'ROLLING BACK…', variant: 'primary' },
+    succeeded: { label: 'ROLLED BACK', variant: 'dark' },
+    partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
+    failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
+  };
+  const rbPill = ROLLBACK_PILL[rollbackStatus];
+
   // Stat card colors are per-card dynamic values — kept as inline style
   const statCards = [
     ...(isNewOrg ? [{ l: 'Orgs registered', v: `${rDone}/${regItems.length}`, c: regColor() }] : []),
     { l: 'Courses created', v: `${cDone}/${courseItems.length}`, c: courseColor() },
+    ...(rollbackActive ? [{ l: 'Courses removed', v: `${rbRemoved}/${rbCreated.length}`, c: '#1f5fd6' }] : []),
     {
       l: 'Discovery synced',
       v: courseDiscoveryEnabled ? `${dDone}/${discItems.length}` : 'Skipped',
@@ -456,6 +481,7 @@ const JobProgress = ({
         <div className="jp-card-header">
           <div className="jp-card-header-left">
             <span className="jp-card-title">{`Job #BR-${(batchId || jobId.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase()}`}</span>
+            {rbPill && <Badge variant={rbPill.variant} pill className="jp-rb-pill">{rbPill.label}</Badge>}
             <span className="jp-card-meta">{`${courseItems.length} runs - ${orgs.length} org${orgs.length !== 1 ? 's' : ''}`}</span>
             {isPending && (
               <span style={{
@@ -530,11 +556,34 @@ const JobProgress = ({
                     orgCourseItems={orgCourseItems}
                     isOrgOpen={openCOrg[orgCode] !== false}
                     onToggle={() => setOpenCOrg(p => ({ ...p, [orgCode]: !p[orgCode] }))}
+                    rollbackStatus={rollbackStatus}
+                    deletingId={rbDeletingId}
                   />
                 );
               })}
             </div>
           </div>
+
+          {/* Rollback — deleting the courses this batch created. Marked "↺"
+              rather than a phase number because it isn't part of the forward
+              1→3 sequence; per-course delete status shows as chips on the
+              Phase 1 rows above. Rendered only once a rollback exists. */}
+          {rollbackActive && (
+            <div className="jp-phase">
+              <PhaseHeader
+                num="↺"
+                label="Rollback - removing created courses"
+                sub={`${rbRemoved} of ${rbCreated.length} removed`}
+                done={!rbInFlight && rbRemoved === rbCreated.length && rbCreated.length > 0}
+                active={rbInFlight}
+                accentColor="#1f5fd6"
+              />
+              <ProgressBar now={rbPct} variant={rbInFlight ? 'primary' : 'info'} />
+              {rollbackStatus === 'partial' && (
+                <div className="jp-rb-hint">Some courses could not be deleted — see the failed rows above.</div>
+              )}
+            </div>
+          )}
 
           {/* Phase 2 — Discovery sync */}
           <div className={`jp-phase${phaseCls(2)}`}>

@@ -34,7 +34,7 @@ const PhaseHeader = ({
 };
 
 PhaseHeader.propTypes = {
-  num: PropTypes.number.isRequired,
+  num: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
   label: PropTypes.string.isRequired,
   sub: PropTypes.string.isRequired,
   done: PropTypes.bool.isRequired,
