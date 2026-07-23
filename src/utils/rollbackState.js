@@ -46,7 +46,7 @@ export const ROLLBACK_CHIP = {
     label: '✕ Deleted', fg: '#3d4553', bg: '#e8eaee', border: 'transparent',
   },
   deleting: {
-    label: 'Deleting…', fg: '#1f5fd6', bg: '#e7eefc', border: 'transparent', spinner: true,
+    label: 'Deleting…', fg: '#006daa', bg: '#deeef8', border: 'transparent', spinner: true,
   },
   queued: {
     label: 'Queued for deletion', fg: '#5b6472', bg: 'transparent', border: '#d0d5dd',

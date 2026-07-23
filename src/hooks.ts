@@ -143,8 +143,11 @@ export const useServerHistory = () => useQuery({
 // Poll rollback progress for JUST the given batches (normally one) instead of
 // re-fetching the whole history list: the list payload carries every batch's
 // config_json snapshot, while the detail endpoint with include_logs=false is
-// constant-size. Returns { [batchId]: rollback_status }. HistoryView watches
-// the result and refreshes the history list once when a rollback terminates.
+// constant-size. Returns { [batchId]: batchDetail } — the FULL slim detail
+// (batch rollback_status + rolled_back_at, and each job's rolled_back /
+// course_created / status) so callers can update per-course rollback chips
+// live, not just the batch-level status. HistoryView merges these into its
+// enriched entries; JobProgress syncs them onto courseItems.
 export const useRollbackProgress = (batchIds: string[]) => useQuery({
   queryKey: ['bulk-rerun-rollback-progress', [...batchIds].sort()],
   queryFn: async () => {
@@ -152,9 +155,7 @@ export const useRollbackProgress = (batchIds: string[]) => useQuery({
     const results = await Promise.all(
       batchIds.map(id => client.get(`${batchUrl(id)}?include_logs=false`).then(r => r.data)),
     );
-    return Object.fromEntries(
-      results.map((b: any) => [b.id, b.rollback_status || 'none']),
-    ) as Record<string, string>;
+    return Object.fromEntries(results.map((b: any) => [b.id, b])) as Record<string, any>;
   },
   enabled: batchIds.length > 0,
   refetchInterval: 5000,

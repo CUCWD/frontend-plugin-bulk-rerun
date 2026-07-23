@@ -32,7 +32,9 @@ function orgGroups(entry) {
 
 // Rollback badge label per terminal rollback_status value.
 const ROLLBACK_BADGE = {
-  succeeded: { label: 'ROLLED BACK', variant: 'dark' },
+  // bg overrides the Paragon variant so ROLLED BACK uses the app blue (#006daa)
+  // rather than near-black, matching the rest of the program's blue.
+  succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
   partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
   failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
 };
@@ -103,7 +105,14 @@ const HistoryEntry = ({
             <Badge variant={BADGE_V[st] || 'light'} pill className="hv-entry-badge">{STATUS_LBL[st] || st}</Badge>
             {entry.isDryRun && <Badge variant="info" pill className="hv-entry-badge">DRY RUN</Badge>}
             {rollbackBadge && (
-              <Badge variant={rollbackBadge.variant} pill className="hv-entry-badge">{rollbackBadge.label}</Badge>
+              <Badge
+                variant={rollbackBadge.variant}
+                pill
+                className="hv-entry-badge"
+                style={rollbackBadge.bg ? { backgroundColor: rollbackBadge.bg, color: '#fff' } : undefined}
+              >
+                {rollbackBadge.label}
+              </Badge>
             )}
             {rollbackInFlight && <Badge variant="primary" pill className="hv-entry-badge">ROLLING BACK…</Badge>}
             <span className="hv-entry-mode">

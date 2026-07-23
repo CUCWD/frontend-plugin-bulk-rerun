@@ -405,7 +405,9 @@ const JobProgress = ({
   const ROLLBACK_PILL = {
     pending: { label: 'ROLLING BACK…', variant: 'primary' },
     running: { label: 'ROLLING BACK…', variant: 'primary' },
-    succeeded: { label: 'ROLLED BACK', variant: 'dark' },
+    // bg overrides the Paragon variant so ROLLED BACK uses the app blue
+    // (#006daa) rather than near-black, matching the rollback tile/phase.
+    succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
     partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
     failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
   };
@@ -415,7 +417,7 @@ const JobProgress = ({
   const statCards = [
     ...(isNewOrg ? [{ l: 'Orgs registered', v: `${rDone}/${regItems.length}`, c: regColor() }] : []),
     { l: 'Courses created', v: `${cDone}/${courseItems.length}`, c: courseColor() },
-    ...(rollbackActive ? [{ l: 'Courses removed', v: `${rbRemoved}/${rbCreated.length}`, c: '#1f5fd6' }] : []),
+    ...(rollbackActive ? [{ l: 'Courses removed', v: `${rbRemoved}/${rbCreated.length}`, c: '#006daa' }] : []),
     {
       l: 'Discovery synced',
       v: courseDiscoveryEnabled ? `${dDone}/${discItems.length}` : 'Skipped',
@@ -481,7 +483,16 @@ const JobProgress = ({
         <div className="jp-card-header">
           <div className="jp-card-header-left">
             <span className="jp-card-title">{`Job #BR-${(batchId || jobId.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase()}`}</span>
-            {rbPill && <Badge variant={rbPill.variant} pill className="jp-rb-pill">{rbPill.label}</Badge>}
+            {rbPill && (
+              <Badge
+                variant={rbPill.variant}
+                pill
+                className="jp-rb-pill"
+                style={rbPill.bg ? { backgroundColor: rbPill.bg, color: '#fff' } : undefined}
+              >
+                {rbPill.label}
+              </Badge>
+            )}
             <span className="jp-card-meta">{`${courseItems.length} runs - ${orgs.length} org${orgs.length !== 1 ? 's' : ''}`}</span>
             {isPending && (
               <span style={{
@@ -576,7 +587,7 @@ const JobProgress = ({
                 sub={`${rbRemoved} of ${rbCreated.length} removed`}
                 done={!rbInFlight && rbRemoved === rbCreated.length && rbCreated.length > 0}
                 active={rbInFlight}
-                accentColor="#1f5fd6"
+                accentColor="#006daa"
               />
               <ProgressBar now={rbPct} variant={rbInFlight ? 'primary' : 'info'} />
               {rollbackStatus === 'partial' && (

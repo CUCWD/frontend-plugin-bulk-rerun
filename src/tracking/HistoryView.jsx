@@ -32,20 +32,11 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
     .map(e => e.batchId);
   const rollbackProgress = useRollbackProgress(inFlightIds);
 
-  useEffect(() => {
-    const statuses = rollbackProgress.data;
-    if (!statuses) { return; }
-    if (Object.values(statuses).some(s => ROLLBACK_TERMINAL.includes(s))) {
-      queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rollbackProgress.data]);
-
   // Fire the rollback and refetch the history list so the entry's
   // rollbackStatus flips to pending immediately (the query then self-polls
   // until the rollback reaches a terminal state — see useServerHistory).
   const handleRollback = async (entry) => {
-    if (!onRollback(entry)) { return; }
+    if (!entry.batchId) { return; }
     try {
       await rollbackBatch.mutateAsync(entry.batchId);
     } catch (e) {
@@ -61,6 +52,43 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
   const [expandedOrg, setExpandedOrg] = useState({});
   const [enrichedMap, setEnrichedMap] = useState({});
   const [loadingIds, setLoadingIds] = useState(new Set());
+
+  // Track A — live summary updates. The 5 s rollback poll carries fresh per-job
+  // rolled_back flags; merge them into the cached enriched entry so the
+  // per-course chips and "n/m removed" tally advance live (only already-enriched,
+  // i.e. visible, entries are touched — the slim poll has no logs, so we merge
+  // rather than overwrite). When a rollback reaches a terminal state, refetch the
+  // history list once so the row badge / rolled_back_at settle and polling stops.
+  useEffect(() => {
+    const details = rollbackProgress.data;
+    if (!details) { return; }
+    setEnrichedMap((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(details).forEach(([id, detail]) => {
+        const existing = prev[id];
+        if (!existing || !Array.isArray(detail.jobs)) { return; }
+        const byKey = Object.fromEntries(detail.jobs.map(dj => [dj.target_course_key, dj]));
+        next[id] = {
+          ...existing,
+          rollbackStatus: detail.rollback_status || existing.rollbackStatus,
+          rolledBackAt: detail.rolled_back_at || existing.rolledBackAt,
+          jobs: (existing.jobs || []).map((j) => {
+            const fresh = byKey[j.targetKey];
+            return fresh
+              ? { ...j, rolledBack: !!fresh.rolled_back, courseCreated: !!fresh.course_created }
+              : j;
+          }),
+        };
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+    if (Object.values(details).some(d => ROLLBACK_TERMINAL.includes(d.rollback_status))) {
+      queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollbackProgress.data]);
 
   const getEnriched = async (entry) => {
     if (!entry.batchId) { return entry; }
