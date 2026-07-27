@@ -32,7 +32,7 @@ import {
 import PropTypes from 'prop-types';
 import { makeKey } from '../utils/courseKeys';
 import { buildExport } from '../utils/buildExport';
-import { deletingJobId } from '../utils/rollbackState';
+import { useBatch } from '../hooks';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
 import useBatchSync from './useBatchSync';
@@ -254,6 +254,43 @@ const JobProgress = ({
     setPhase,
   });
 
+  // ── Track B — live rollback in the History detail view ────────────────────
+  // viewingEntry is a one-time snapshot and useBatchSync is off in history mode,
+  // so while a rollback is in flight we poll the FULL batch detail ourselves
+  // (include_logs=true) and sync each job's rolled_back AND its log lines onto
+  // courseItems — so both the chips and the rollback log tail stream live. The
+  // rollback window is short, so the heavier payload is bounded. liveRollback
+  // holds the latest detail so rollbackStatus is stable once polling stops.
+  const [liveRollback, setLiveRollback] = useState(null);
+  const rollbackStatus = liveRollback?.rollback_status || historyEntry?.rollbackStatus || 'none';
+  const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
+  // 2 s interval (vs the 5 s default) so the rollback chips + log tail advance
+  // responsively; only runs during the short in-flight window.
+  const rollbackPoll = useBatch(batchId, !!(historyEntry && batchId && rbInFlight), true, 2000);
+
+  useEffect(() => {
+    const detail = rollbackPoll.data;
+    if (!detail || detail.id !== batchId || !Array.isArray(detail.jobs)) { return; }
+    setLiveRollback(detail);
+    const jobByKey = Object.fromEntries(detail.jobs.map(j => [j.target_course_key, j]));
+    setCourseItems(prev => prev.map(item => {
+      const targetKey = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : null;
+      const job = targetKey ? jobByKey[targetKey] : null;
+      if (!job) { return item; }
+      const logs = Array.isArray(job.logs) && job.logs.length > 0
+        ? job.logs.map(l => ({
+          lv: l.level,
+          msg: l.message,
+          ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+        }))
+        : item.logs;
+      return {
+        ...item, rolledBack: !!job.rolled_back, courseCreated: !!job.course_created, logs,
+      };
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollbackPoll.data]);
+
   const batchDone = isRealMode
     ? !!batchQuery.data && (
       ['succeeded', 'failed', 'partial'].includes(batchQuery.data.status)
@@ -393,14 +430,12 @@ const JobProgress = ({
   };
 
   // ── Rollback display state (History detail view) ──────────────────────────
-  // All derived from fields the batch-detail API already returns; nothing here
-  // runs unless a rollback has been requested for this batch.
-  const rollbackStatus = historyEntry?.rollbackStatus || 'none';
+  // rollbackStatus / rbInFlight are derived above (Track B) from the live poll,
+  // falling back to the viewingEntry snapshot. The counts below read courseItems,
+  // which the Track B sync effect keeps current, so tile/phase/chips advance live.
   const rollbackActive = rollbackStatus !== 'none';
-  const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
   const rbCreated = courseItems.filter(it => it.courseCreated);
   const rbRemoved = rbCreated.filter(it => it.rolledBack).length;
-  const rbDeletingId = deletingJobId(courseItems, rollbackStatus);
   const rbPct = rbCreated.length > 0 ? Math.round((rbRemoved / rbCreated.length) * 100) : 0;
   const ROLLBACK_PILL = {
     pending: { label: 'ROLLING BACK…', variant: 'primary' },
@@ -568,7 +603,6 @@ const JobProgress = ({
                     isOrgOpen={openCOrg[orgCode] !== false}
                     onToggle={() => setOpenCOrg(p => ({ ...p, [orgCode]: !p[orgCode] }))}
                     rollbackStatus={rollbackStatus}
-                    deletingId={rbDeletingId}
                   />
                 );
               })}

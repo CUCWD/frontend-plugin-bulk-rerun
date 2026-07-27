@@ -32,21 +32,6 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
     .map(e => e.batchId);
   const rollbackProgress = useRollbackProgress(inFlightIds);
 
-  // Fire the rollback and refetch the history list so the entry's
-  // rollbackStatus flips to pending immediately (the query then self-polls
-  // until the rollback reaches a terminal state — see useServerHistory).
-  const handleRollback = async (entry) => {
-    if (!entry.batchId) { return; }
-    try {
-      await rollbackBatch.mutateAsync(entry.batchId);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('[BulkRerun] Rollback request failed for', entry.batchId, e?.response?.data || e);
-    } finally {
-      queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
-    }
-  };
-
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedOrg, setExpandedOrg] = useState({});
@@ -89,6 +74,31 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rollbackProgress.data]);
+
+  // Fire the rollback. Optimistically flip this batch to a rolling-back state
+  // right away — both in the history-list cache (so inFlightIds picks it up and
+  // polling starts immediately, and the badge flips) and in enrichedMap (so an
+  // expanded entry's per-course chips react on click) — before the server
+  // round-trip. The 2 s poll then confirms/corrects. A final list refetch settles
+  // the terminal state.
+  const handleRollback = async (entry) => {
+    if (!entry.batchId) { return; }
+    const id = entry.batchId;
+    queryClient.setQueryData(['bulk-rerun-history'], old => (Array.isArray(old)
+      ? old.map(e => (e.batchId === id ? { ...e, rollbackStatus: 'pending' } : e))
+      : old));
+    setEnrichedMap(prev => (prev[id]
+      ? { ...prev, [id]: { ...prev[id], rollbackStatus: 'pending' } }
+      : prev));
+    try {
+      await rollbackBatch.mutateAsync(id);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[BulkRerun] Rollback request failed for', id, e?.response?.data || e);
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
+    }
+  };
 
   const getEnriched = async (entry) => {
     if (!entry.batchId) { return entry; }

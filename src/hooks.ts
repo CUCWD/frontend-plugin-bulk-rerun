@@ -158,7 +158,10 @@ export const useRollbackProgress = (batchIds: string[]) => useQuery({
     return Object.fromEntries(results.map((b: any) => [b.id, b])) as Record<string, any>;
   },
   enabled: batchIds.length > 0,
-  refetchInterval: 5000,
+  // 2 s (not 5 s): this query only runs while a rollback is in flight, which is
+  // a short window, so a tighter interval makes the summary chips advance
+  // responsively without a meaningful cost.
+  refetchInterval: 2000,
   refetchOnWindowFocus: false,
 });
 
@@ -204,7 +207,12 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
 // terminal state, without changing the query key (so cached data is preserved).
 // includeLogs=false requests the constant-size status payload (no nested log
 // lines); log lines are then fetched incrementally per job via fetchJobLogs.
-export const useBatch = (batchId: string | null, pollingEnabled = true, includeLogs = true) => useQuery({
+export const useBatch = (
+  batchId: string | null,
+  pollingEnabled = true,
+  includeLogs = true,
+  intervalMs = 5000,
+) => useQuery({
   queryKey: ['bulk-rerun-batch', batchId, includeLogs],
   queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient()
@@ -218,7 +226,7 @@ export const useBatch = (batchId: string | null, pollingEnabled = true, includeL
     if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
-  refetchInterval: pollingEnabled ? 5000 : false,
+  refetchInterval: pollingEnabled ? intervalMs : false,
 });
 
 const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;
