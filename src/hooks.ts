@@ -158,10 +158,10 @@ export const useRollbackProgress = (batchIds: string[]) => useQuery({
     return Object.fromEntries(results.map((b: any) => [b.id, b])) as Record<string, any>;
   },
   enabled: batchIds.length > 0,
-  // 2 s (not 5 s): this query only runs while a rollback is in flight, which is
-  // a short window, so a tighter interval makes the summary chips advance
-  // responsively without a meaningful cost.
-  refetchInterval: 2000,
+  // 1 s: this query only runs while a rollback is in flight (a short window),
+  // and the backend paces deletions ~0.75 s apart, so a 1 s poll catches each
+  // course flipping Deleting → Deleted and the tally advancing step by step.
+  refetchInterval: 1000,
   refetchOnWindowFocus: false,
 });
 

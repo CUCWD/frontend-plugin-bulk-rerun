@@ -32,6 +32,7 @@ import {
 import PropTypes from 'prop-types';
 import { makeKey } from '../utils/courseKeys';
 import { buildExport } from '../utils/buildExport';
+import { deletingJobId } from '../utils/rollbackState';
 import { useBatch } from '../hooks';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
@@ -264,9 +265,9 @@ const JobProgress = ({
   const [liveRollback, setLiveRollback] = useState(null);
   const rollbackStatus = liveRollback?.rollback_status || historyEntry?.rollbackStatus || 'none';
   const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
-  // 2 s interval (vs the 5 s default) so the rollback chips + log tail advance
-  // responsively; only runs during the short in-flight window.
-  const rollbackPoll = useBatch(batchId, !!(historyEntry && batchId && rbInFlight), true, 2000);
+  // 1 s interval (vs the 5 s default) so the rollback chips + log tail advance
+  // step by step with the backend's ~0.75 s pacing; only runs while in flight.
+  const rollbackPoll = useBatch(batchId, !!(historyEntry && batchId && rbInFlight), true, 1000);
 
   useEffect(() => {
     const detail = rollbackPoll.data;
@@ -436,6 +437,9 @@ const JobProgress = ({
   const rollbackActive = rollbackStatus !== 'none';
   const rbCreated = courseItems.filter(it => it.courseCreated);
   const rbRemoved = rbCreated.filter(it => it.rolledBack).length;
+  // The single course currently being deleted (paced sequential rollback) — the
+  // first created course not yet removed, by position; null when not in flight.
+  const rbDeletingId = deletingJobId(courseItems, rollbackStatus);
   const rbPct = rbCreated.length > 0 ? Math.round((rbRemoved / rbCreated.length) * 100) : 0;
   const ROLLBACK_PILL = {
     pending: { label: 'ROLLING BACK…', variant: 'primary' },
@@ -603,6 +607,7 @@ const JobProgress = ({
                     isOrgOpen={openCOrg[orgCode] !== false}
                     onToggle={() => setOpenCOrg(p => ({ ...p, [orgCode]: !p[orgCode] }))}
                     rollbackStatus={rollbackStatus}
+                    deletingId={rbDeletingId}
                   />
                 );
               })}
