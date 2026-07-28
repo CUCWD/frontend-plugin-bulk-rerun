@@ -198,7 +198,23 @@ $jp-mono:      t.$bulk-mono;
   color: $jp-g500;
 }
 
+.jp-org-rb {
+  margin-left: 10px;
+  font-size: 12px;
+  color: $jp-g500;
+  font-variant-numeric: tabular-nums;
+}
+
 .jp-org-rows   { padding: 4px 0; }
+
+// Rollback elements in the details view.
+.jp-rb-pill { margin-left: 8px; }
+
+.jp-rb-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: $jp-g500;
+}
 
 // ── Action bar ─────────────────────────────────────────────────────────────────
 .jp-action-bar {

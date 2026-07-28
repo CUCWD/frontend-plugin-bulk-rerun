@@ -2,6 +2,7 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Button, Badge } from '@openedx/paragon';
 import { buildExport } from '../utils/buildExport';
+import { deletingJobId } from '../utils/rollbackState';
 import HistoryOrgGroup from './HistoryOrgGroup';
 
 const fmtDateShort = iso => {
@@ -29,8 +30,18 @@ function orgGroups(entry) {
   }));
 }
 
+// Rollback badge label per terminal rollback_status value.
+const ROLLBACK_BADGE = {
+  // bg overrides the Paragon variant so ROLLED BACK uses the app blue (#006daa)
+  // rather than near-black, matching the rest of the program's blue.
+  succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
+  partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
+  failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
+};
+
 const HistoryEntry = ({
-  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail,
+  entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail, getEnriched,
+  onRollback, isRollbackPending,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -58,6 +69,31 @@ const HistoryEntry = ({
   const groups = orgGroups(entry);
   const jobId = (entry.batchId || entry.id.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase();
 
+  // Rollback state. Eligible = the batch actually created courses (flagged
+  // server-side) and no rollback has been requested yet. Batches from before
+  // rollback support have createdCourses 0 and simply never show the button.
+  const rollbackStatus = entry.rollbackStatus || 'none';
+  const rollbackInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
+  // Which course is being deleted right now (sequential, position order); null
+  // unless a rollback is actively running. entry.jobs is in position order.
+  const deletingId = deletingJobId(jobs, rollbackStatus);
+  const rollbackBadge = ROLLBACK_BADGE[rollbackStatus];
+  const canRollback = rollbackStatus === 'none'
+    && !entry.isDryRun
+    && (entry.createdCourses || 0) > 0
+    && !!entry.batchId;
+
+  const confirmRollback = () => {
+    const n = entry.createdCourses;
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(
+      `Roll back this bulk run?\n\nThe ${n} course${n !== 1 ? 's' : ''} created by this batch `
+      + 'will be PERMANENTLY DELETED, including any content added since. '
+      + 'Courses that existed before the batch are never touched.\n\nThis cannot be undone.',
+    )) { return; }
+    onRollback(entry);
+  };
+
   return (
     <div className="hv-entry">
       <div className="hv-entry-row">
@@ -68,6 +104,17 @@ const HistoryEntry = ({
             <span className="hv-entry-id">{`BR-${jobId}`}</span>
             <Badge variant={BADGE_V[st] || 'light'} pill className="hv-entry-badge">{STATUS_LBL[st] || st}</Badge>
             {entry.isDryRun && <Badge variant="info" pill className="hv-entry-badge">DRY RUN</Badge>}
+            {rollbackBadge && (
+              <Badge
+                variant={rollbackBadge.variant}
+                pill
+                className="hv-entry-badge"
+                style={rollbackBadge.bg ? { backgroundColor: rollbackBadge.bg, color: '#fff' } : undefined}
+              >
+                {rollbackBadge.label}
+              </Badge>
+            )}
+            {rollbackInFlight && <Badge variant="primary" pill className="hv-entry-badge">ROLLING BACK…</Badge>}
             <span className="hv-entry-mode">
               {(MODE_LABELS[entry.mode] || entry.mode) + (entry.progName ? `  -  ${entry.progName}` : '')}
             </span>
@@ -89,7 +136,16 @@ const HistoryEntry = ({
         </div>
 
         <div className="hv-entry-actions">
-          <Button variant="success" size="sm" onClick={() => copy(buildExport(entry))}>
+          {/* Fresh list entries are lightweight summaries (jobs: []) — fetch the
+              full batch detail (jobs + logs) before building the export, so the
+              report includes logs even when the entry was never viewed/expanded.
+              getEnriched caches, so repeat exports don't re-fetch. */}
+          <Button
+            variant="success"
+            size="sm"
+            disabled={isLoadingDetail}
+            onClick={async () => copy(buildExport(await getEnriched(entry)))}
+          >
             {copied ? 'Copied!' : 'Export report'}
           </Button>
           <Button variant="outline-primary" size="sm" onClick={() => onView(entry)} disabled={isLoadingDetail}>
@@ -98,6 +154,16 @@ const HistoryEntry = ({
           <Button variant="outline-primary" size="sm" onClick={onToggle} disabled={isLoadingDetail}>
             {isOpen ? 'Hide' : 'Summary'}
           </Button>
+          {canRollback && (
+            <Button
+              variant="outline-danger"
+              size="sm"
+              disabled={isRollbackPending}
+              onClick={confirmRollback}
+            >
+              Rollback
+            </Button>
+          )}
         </div>
       </div>
 
@@ -111,6 +177,8 @@ const HistoryEntry = ({
                 group={g}
                 isOrgOpen={expandedOrg[gKey] !== false}
                 onToggle={() => setExpandedOrg(p => ({ ...p, [gKey]: p[gKey] === false }))}
+                rollbackStatus={rollbackStatus}
+                deletingId={deletingId}
               />
             );
           })}
@@ -133,6 +201,8 @@ HistoryEntry.propTypes = {
     targetRun: PropTypes.string,
     orgs: PropTypes.arrayOf(PropTypes.string),
     jobs: PropTypes.arrayOf(PropTypes.shape({})),
+    rollbackStatus: PropTypes.string,
+    createdCourses: PropTypes.number,
     cfg: PropTypes.shape({
       rows: PropTypes.arrayOf(PropTypes.shape({})),
     }),
@@ -143,10 +213,14 @@ HistoryEntry.propTypes = {
   setExpandedOrg: PropTypes.func.isRequired,
   onView: PropTypes.func.isRequired,
   isLoadingDetail: PropTypes.bool,
+  getEnriched: PropTypes.func.isRequired,
+  onRollback: PropTypes.func.isRequired,
+  isRollbackPending: PropTypes.bool,
 };
 
 HistoryEntry.defaultProps = {
   isLoadingDetail: false,
+  isRollbackPending: false,
 };
 
 export default HistoryEntry;

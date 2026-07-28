@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Spinner } from '@openedx/paragon';
 import { makeKey } from '../../utils/courseKeys';
+import RollbackChip from '../../tracking/RollbackChip';
+import { jobRollbackState } from '../../utils/rollbackState';
 
 const TARGET_COLS = [
   { label: 'TARGET ORG', key: 'org' },
@@ -51,7 +53,7 @@ const STATUS_LABELS = {
   pending: 'Pending',
 };
 
-const PhaseItem = ({ item }) => {
+const PhaseItem = ({ item, rollbackStatus, deletingId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const autoOpenedRef = useRef(false);
   const [liveElapsed, setLiveElapsed] = useState('');
@@ -118,12 +120,19 @@ const PhaseItem = ({ item }) => {
   }
   const statusLabel = STATUS_LABELS[item.status] || 'Pending';
 
+  // Per-course rollback chip (History detail view only; null in live/sim mode).
+  const rbState = jobRollbackState(item, rollbackStatus, deletingId);
+  const rbDeleted = rbState === 'deleted';
+
   return (
     <div className="pi-item">
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className="pi-row" onClick={() => setIsOpen(o => !o)}>
         <div className="pi-label">{label}</div>
-        {sublabel && <div className="pi-sublabel">{sublabel}</div>}
+        {sublabel && (
+          <div className="pi-sublabel" style={rbDeleted ? { textDecoration: 'line-through' } : undefined}>{sublabel}</div>
+        )}
+        {rbState && <RollbackChip state={rbState} />}
         <div className={`pi-status${statusMod}`}>
           {statusIcon}
           {' '}
@@ -148,7 +157,14 @@ const PhaseItem = ({ item }) => {
           <div className={`pi-log-panel${item.r ? '' : ' pi-log-panel--solo'}`}>
             {item.logs.length === 0 && <div className="pi-log-waiting">Waiting to start...</div>}
             {item.logs.map(l => (
-              <div key={`${l.ts}-${l.lv}-${l.msg}`} className={LOG_CLS[l.lv] || 'pi-log-info'}>
+              <div
+                key={`${l.ts}-${l.lv}-${l.msg}`}
+                className={LOG_CLS[l.lv] || 'pi-log-info'}
+                // Rollback lines (written by the backend rollback task) are
+                // tinted amber so the deletion tail reads apart from the
+                // green/blue creation history.
+                style={(l.msg || '').startsWith('Rollback') ? { color: '#e0a54e' } : undefined}
+              >
                 [{l.ts}] {l.msg}
               </div>
             ))}
@@ -162,16 +178,32 @@ const PhaseItem = ({ item }) => {
 
 PhaseItem.propTypes = {
   item: PHASE_ITEM_PROP_TYPE.isRequired,
+  rollbackStatus: PropTypes.string,
+  deletingId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };
 
-const PhaseItemRows = ({ items }) => (
+PhaseItem.defaultProps = {
+  rollbackStatus: 'none',
+  deletingId: null,
+};
+
+const PhaseItemRows = ({ items, rollbackStatus, deletingId }) => (
   <>
-    {items.map(item => <PhaseItem key={item.id} item={item} />)}
+    {items.map(item => (
+      <PhaseItem key={item.id} item={item} rollbackStatus={rollbackStatus} deletingId={deletingId} />
+    ))}
   </>
 );
 
 PhaseItemRows.propTypes = {
   items: PropTypes.arrayOf(PHASE_ITEM_PROP_TYPE).isRequired,
+  rollbackStatus: PropTypes.string,
+  deletingId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};
+
+PhaseItemRows.defaultProps = {
+  rollbackStatus: 'none',
+  deletingId: null,
 };
 
 export default PhaseItemRows;

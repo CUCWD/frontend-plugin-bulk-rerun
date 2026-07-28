@@ -1,7 +1,8 @@
 // Hookstate singleton shared across the entire plugin. Covers wizard navigation
 // (bulkView, step), in-flight wizard data (rows, cfg), active job tracking, and run history.
 // History is written to localStorage on every save so it survives page refresh.
-// activeJobs are recovered server-side on mount via useRunningBatches (see StepProgress).
+// activeJobs are merged from the server's all-users batch list via useRunningBatches
+// polling (see StepProgress), so every operator sees the same Current tab.
 //
 // IMPORTANT: all write operations (set/merge) use the module-level `bulkRerunState`
 // reference directly, never the component-scoped `s` from useHookstate. Using `s`
@@ -18,6 +19,8 @@ export type ActiveJob = {
   isPending: boolean; // true while waiting for POST /batches/ to return
   createdAt: string;
   createdBy: string;
+  done?: boolean; // set when the batch reaches a terminal state; the card stays
+  //                 visible until dismissed but no longer counts as "active"
 };
 
 export type HistoryEntry = {
@@ -146,6 +149,13 @@ export const useBulkRerunState = () => {
     },
     removeActiveJob: (id: string) => {
       g.activeJobs.set((g.activeJobs.get({ noproxy: true }) as ActiveJob[]).filter(j => j.id !== id));
+    },
+    // Marks a job's batch as terminal. Stored on the job (not component state) so
+    // the "N active runs" count and the Dismiss button survive tab navigation.
+    markActiveJobDone: (id: string) => {
+      g.activeJobs.set(
+        (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(j => (j.id === id ? { ...j, done: true } : j)),
+      );
     },
     flipActiveJobDry: (id: string) => {
       g.activeJobs.set(

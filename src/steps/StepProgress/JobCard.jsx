@@ -60,7 +60,12 @@ const JobCard = ({
             onClick={e => {
               e.stopPropagation();
               // eslint-disable-next-line no-alert
-              if (!window.confirm('Stop this bulk rerun job? All pending and running courses will be marked as failed.')) { return; }
+              if (!window.confirm(
+                'Stop this bulk rerun job?\n\n'
+                + 'All pending and running courses will be marked as failed, and '
+                + 'every course this batch has already created will be PERMANENTLY '
+                + 'DELETED so the batch can be resubmitted from scratch.',
+              )) { return; }
               onCancel();
             }}
           >

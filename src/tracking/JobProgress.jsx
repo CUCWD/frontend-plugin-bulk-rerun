@@ -32,6 +32,8 @@ import {
 import PropTypes from 'prop-types';
 import { makeKey } from '../utils/courseKeys';
 import { buildExport } from '../utils/buildExport';
+import { deletingJobId } from '../utils/rollbackState';
+import { useBatch } from '../hooks';
 import PhaseHeader from '../steps/StepProgress/PhaseHeader';
 import PhaseItemRows from '../steps/StepProgress/PhaseItemRows';
 import useBatchSync from './useBatchSync';
@@ -100,6 +102,7 @@ const historyEntryPropType = PropTypes.shape({
   targetRun: PropTypes.string,
   isDryRun: PropTypes.bool,
   status: PropTypes.string,
+  rollbackStatus: PropTypes.string,
   orgs: PropTypes.arrayOf(PropTypes.string),
   jobs: PropTypes.arrayOf(historyJobPropType),
 });
@@ -178,6 +181,9 @@ const JobProgress = ({
           logs: histLogs(j),
           elapsed: j.elapsed || '',
           t0: 0,
+          position: j.position ?? i,
+          courseCreated: !!j.courseCreated,
+          rolledBack: !!j.rolledBack,
         };
       });
     }
@@ -248,6 +254,43 @@ const JobProgress = ({
     setProgItems,
     setPhase,
   });
+
+  // ── Track B — live rollback in the History detail view ────────────────────
+  // viewingEntry is a one-time snapshot and useBatchSync is off in history mode,
+  // so while a rollback is in flight we poll the FULL batch detail ourselves
+  // (include_logs=true) and sync each job's rolled_back AND its log lines onto
+  // courseItems — so both the chips and the rollback log tail stream live. The
+  // rollback window is short, so the heavier payload is bounded. liveRollback
+  // holds the latest detail so rollbackStatus is stable once polling stops.
+  const [liveRollback, setLiveRollback] = useState(null);
+  const rollbackStatus = liveRollback?.rollback_status || historyEntry?.rollbackStatus || 'none';
+  const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
+  // 1 s interval (vs the 5 s default) so the rollback chips + log tail advance
+  // step by step with the backend's ~0.75 s pacing; only runs while in flight.
+  const rollbackPoll = useBatch(batchId, !!(historyEntry && batchId && rbInFlight), true, 1000);
+
+  useEffect(() => {
+    const detail = rollbackPoll.data;
+    if (!detail || detail.id !== batchId || !Array.isArray(detail.jobs)) { return; }
+    setLiveRollback(detail);
+    const jobByKey = Object.fromEntries(detail.jobs.map(j => [j.target_course_key, j]));
+    setCourseItems(prev => prev.map(item => {
+      const targetKey = item.r ? makeKey(item.r.org, item.r.num, item.r.run) : null;
+      const job = targetKey ? jobByKey[targetKey] : null;
+      if (!job) { return item; }
+      const logs = Array.isArray(job.logs) && job.logs.length > 0
+        ? job.logs.map(l => ({
+          lv: l.level,
+          msg: l.message,
+          ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+        }))
+        : item.logs;
+      return {
+        ...item, rolledBack: !!job.rolled_back, courseCreated: !!job.course_created, logs,
+      };
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollbackPoll.data]);
 
   const batchDone = isRealMode
     ? !!batchQuery.data && (
@@ -387,10 +430,33 @@ const JobProgress = ({
     return '#c8c8c8';
   };
 
+  // ── Rollback display state (History detail view) ──────────────────────────
+  // rollbackStatus / rbInFlight are derived above (Track B) from the live poll,
+  // falling back to the viewingEntry snapshot. The counts below read courseItems,
+  // which the Track B sync effect keeps current, so tile/phase/chips advance live.
+  const rollbackActive = rollbackStatus !== 'none';
+  const rbCreated = courseItems.filter(it => it.courseCreated);
+  const rbRemoved = rbCreated.filter(it => it.rolledBack).length;
+  // The single course currently being deleted (paced sequential rollback) — the
+  // first created course not yet removed, by position; null when not in flight.
+  const rbDeletingId = deletingJobId(courseItems, rollbackStatus);
+  const rbPct = rbCreated.length > 0 ? Math.round((rbRemoved / rbCreated.length) * 100) : 0;
+  const ROLLBACK_PILL = {
+    pending: { label: 'ROLLING BACK…', variant: 'primary' },
+    running: { label: 'ROLLING BACK…', variant: 'primary' },
+    // bg overrides the Paragon variant so ROLLED BACK uses the app blue
+    // (#006daa) rather than near-black, matching the rollback tile/phase.
+    succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
+    partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
+    failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
+  };
+  const rbPill = ROLLBACK_PILL[rollbackStatus];
+
   // Stat card colors are per-card dynamic values — kept as inline style
   const statCards = [
     ...(isNewOrg ? [{ l: 'Orgs registered', v: `${rDone}/${regItems.length}`, c: regColor() }] : []),
     { l: 'Courses created', v: `${cDone}/${courseItems.length}`, c: courseColor() },
+    ...(rollbackActive ? [{ l: 'Courses removed', v: `${rbRemoved}/${rbCreated.length}`, c: '#006daa' }] : []),
     {
       l: 'Discovery synced',
       v: courseDiscoveryEnabled ? `${dDone}/${discItems.length}` : 'Skipped',
@@ -456,6 +522,16 @@ const JobProgress = ({
         <div className="jp-card-header">
           <div className="jp-card-header-left">
             <span className="jp-card-title">{`Job #BR-${(batchId || jobId.replace(/^recovered-/, '')).replace(/-/g, '').slice(0, 8).toUpperCase()}`}</span>
+            {rbPill && (
+              <Badge
+                variant={rbPill.variant}
+                pill
+                className="jp-rb-pill"
+                style={rbPill.bg ? { backgroundColor: rbPill.bg, color: '#fff' } : undefined}
+              >
+                {rbPill.label}
+              </Badge>
+            )}
             <span className="jp-card-meta">{`${courseItems.length} runs - ${orgs.length} org${orgs.length !== 1 ? 's' : ''}`}</span>
             {isPending && (
               <span style={{
@@ -530,11 +606,34 @@ const JobProgress = ({
                     orgCourseItems={orgCourseItems}
                     isOrgOpen={openCOrg[orgCode] !== false}
                     onToggle={() => setOpenCOrg(p => ({ ...p, [orgCode]: !p[orgCode] }))}
+                    rollbackStatus={rollbackStatus}
+                    deletingId={rbDeletingId}
                   />
                 );
               })}
             </div>
           </div>
+
+          {/* Rollback — deleting the courses this batch created. Marked "↺"
+              rather than a phase number because it isn't part of the forward
+              1→3 sequence; per-course delete status shows as chips on the
+              Phase 1 rows above. Rendered only once a rollback exists. */}
+          {rollbackActive && (
+            <div className="jp-phase">
+              <PhaseHeader
+                num="↺"
+                label="Rollback - removing created courses"
+                sub={`${rbRemoved} of ${rbCreated.length} removed`}
+                done={!rbInFlight && rbRemoved === rbCreated.length && rbCreated.length > 0}
+                active={rbInFlight}
+                accentColor="#006daa"
+              />
+              <ProgressBar now={rbPct} variant={rbInFlight ? 'primary' : 'info'} />
+              {rollbackStatus === 'partial' && (
+                <div className="jp-rb-hint">Some courses could not be deleted — see the failed rows above.</div>
+              )}
+            </div>
+          )}
 
           {/* Phase 2 — Discovery sync */}
           <div className={`jp-phase${phaseCls(2)}`}>

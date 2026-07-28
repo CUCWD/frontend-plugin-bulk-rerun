@@ -4,8 +4,8 @@
 // useCancelBatch        — POST /batches/:id/cancel/  cancels a pending/running batch.
 // useBatch              — GET  /batches/:id/         polls every 5 s (include_logs=false — status only);
 //                                                    stops when the job reaches a terminal status.
-// useRunningBatches     — GET  /batches/?status=...  fetches the caller's in-progress batches; used to recover
-//                                                    active jobs after a page refresh or on a different device.
+// useRunningBatches     — GET  /batches/?status=...  fetches ALL users' in-progress batches (shared tracking
+//                                                    view); polled so other operators' batches appear live.
 // useOrgs               — GET  /organizations        fetches org short-names from Studio.
 // usePrograms           — GET  discovery /api/v1/programs/?status=active  fetches active programs.
 // useCourses            — GET  /courses              fetches up to 500 DEMO-run live courses.
@@ -13,6 +13,7 @@
 import { getConfig, camelCaseObject } from '@edx/frontend-platform';
 import { getAuthenticatedHttpClient } from '@edx/frontend-platform/auth';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { makeKey, parseKeyParts } from './utils/courseKeys';
 
 export type CourseApiItem = {
   courseKey: string;
@@ -57,24 +58,45 @@ const mapApiStatus = (s: string) => {
   return 'pending';
 };
 
-const mapDetailJobs = (detail: any) => (detail.jobs || []).map((j: any, i: number) => ({
-  id: j.id ?? i,
-  org: j.org,
-  orgName: j.org_name,
-  name: j.course_name,
-  srcKey: j.src_key || '',
-  targetKey: j.target_course_key || j.target_key || '',
-  status: mapApiStatus(j.status),
-  elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
-  logs: Array.isArray(j.logs)
-    ? j.logs.map((l: any) => ({
-      lv: l.level,
-      msg: l.message,
-      ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
-    }))
-    : [],
-  failReason: j.error_message || j.fail_reason || null,
-}));
+// The batch-detail API's job payload carries only course keys, status, timing,
+// and logs — org and display name are not job model fields. Derive the org from
+// the target key (course-v1:ORG+NUM+RUN) and look display names up in the
+// entry's config snapshot, mirroring what JobProgress does for its live view.
+// Without this, exports/summaries group jobs under an undefined org and every
+// org section renders empty.
+const mapDetailJobs = (detail: any, entry?: any) => {
+  const nameByTarget: Record<string, string> = {};
+  ((entry?.cfg?.rows ?? []) as any[]).forEach((r: any) => {
+    nameByTarget[makeKey(r.org, r.num, r.run)] = r.name;
+  });
+  return (detail.jobs || []).map((j: any, i: number) => {
+    const targetKey = j.target_course_key || j.target_key || '';
+    const org = j.org || parseKeyParts(targetKey).org;
+    return {
+      id: j.id ?? i,
+      org,
+      orgName: j.org_name || org,
+      name: j.course_name || nameByTarget[targetKey] || '',
+      srcKey: j.src_key || j.source_course_key || '',
+      targetKey,
+      position: j.position ?? i,
+      // Rollback bookkeeping the History summary + Job details use to render
+      // per-course rollback chips. Both are plain booleans from the API.
+      courseCreated: !!j.course_created,
+      rolledBack: !!j.rolled_back,
+      status: mapApiStatus(j.status),
+      elapsed: j.elapsed_seconds != null ? `${Number(j.elapsed_seconds).toFixed(1)}s` : '',
+      logs: Array.isArray(j.logs)
+        ? j.logs.map((l: any) => ({
+          lv: l.level,
+          msg: l.message,
+          ts: new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false }),
+        }))
+        : [],
+      failReason: j.error_message || j.fail_reason || null,
+    };
+  });
+};
 
 const mapBatchSummary = (batch: any) => {
   const cfg = batch.config_json || {};
@@ -94,10 +116,13 @@ const mapBatchSummary = (batch: any) => {
     orgs: orgsFromRows.length > 0 ? orgsFromRows : orgsFromNewOrgs,
     cfg: cfg || null,
     jobs: [],
+    rollbackStatus: batch.rollback_status || 'none',
+    rolledBackAt: batch.rolled_back_at || null,
+    createdCourses: batch.created_courses ?? 0,
   };
 };
 
-export const enrichEntry = (entry: any, detail: any) => ({ ...entry, jobs: mapDetailJobs(detail) });
+export const enrichEntry = (entry: any, detail: any) => ({ ...entry, jobs: mapDetailJobs(detail, entry) });
 
 export const fetchBatchDetail = async (batchId: string) => {
   const { data } = await getAuthenticatedHttpClient().get(batchUrl(batchId));
@@ -115,17 +140,57 @@ export const useServerHistory = () => useQuery({
   refetchOnWindowFocus: false,
 });
 
+// Poll rollback progress for JUST the given batches (normally one) instead of
+// re-fetching the whole history list: the list payload carries every batch's
+// config_json snapshot, while the detail endpoint with include_logs=false is
+// constant-size. Returns { [batchId]: batchDetail } — the FULL slim detail
+// (batch rollback_status + rolled_back_at, and each job's rolled_back /
+// course_created / status) so callers can update per-course rollback chips
+// live, not just the batch-level status. HistoryView merges these into its
+// enriched entries; JobProgress syncs them onto courseItems.
+export const useRollbackProgress = (batchIds: string[]) => useQuery({
+  queryKey: ['bulk-rerun-rollback-progress', [...batchIds].sort()],
+  queryFn: async () => {
+    const client = getAuthenticatedHttpClient();
+    const results = await Promise.all(
+      batchIds.map(id => client.get(`${batchUrl(id)}?include_logs=false`).then(r => r.data)),
+    );
+    return Object.fromEntries(results.map((b: any) => [b.id, b])) as Record<string, any>;
+  },
+  enabled: batchIds.length > 0,
+  // 1 s: this query only runs while a rollback is in flight (a short window),
+  // and the backend paces deletions ~0.75 s apart, so a 1 s poll catches each
+  // course flipping Deleting → Deleted and the tally advancing step by step.
+  refetchInterval: 1000,
+  refetchOnWindowFocus: false,
+});
+
+// Stop always rolls back: cancelling a batch also deletes every course it
+// created so far (backend deletes only course_created=True jobs), so the
+// user can immediately resubmit the batch with corrected settings.
 export const useCancelBatch = () => useMutation({
   mutationFn: async (batchId: string) => {
     const { data } = await getAuthenticatedHttpClient()
-      .post(`${batchUrl(batchId)}cancel/`);
+      .post(`${batchUrl(batchId)}cancel/`, { rollback: true });
     return data;
   },
 });
 
-// Fetch the current user's batches filtered by status.
-// Fetched once on mount (no polling) — used by StepProgress to restore in-flight
-// jobs after a page refresh or when navigating from a different device/tab.
+// Roll back a terminal batch from the History tab — deletes the courses the
+// batch created (never courses it merely adopted). Returns 202; the history
+// list is refetched to pick up rollback_status transitions.
+export const useRollbackBatch = () => useMutation({
+  mutationFn: async (batchId: string) => {
+    const { data } = await getAuthenticatedHttpClient()
+      .post(`${batchUrl(batchId)}rollback/`);
+    return data;
+  },
+});
+
+// Fetch in-flight batches for ALL users, filtered by status — the tracking page
+// is a shared view of every operator's runs. Used by StepProgress to restore
+// jobs after a page refresh and to surface batches started by other users.
+// Polled every 15 s so another operator's new batch appears without a reload.
 export const useRunningBatches = (statusFilter = 'running,pending') => useQuery({
   queryKey: ['bulk-rerun-batches-running', statusFilter],
   queryFn: async () => {
@@ -133,16 +198,21 @@ export const useRunningBatches = (statusFilter = 'running,pending') => useQuery(
       .get(`${batchesUrl()}?status=${encodeURIComponent(statusFilter)}`);
     return data as any[];
   },
-  staleTime: Infinity,
-  refetchOnWindowFocus: false,
-  refetchInterval: false,
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+  refetchInterval: 15000,
 });
 
 // pollingEnabled lets useBatchSync disable fetching once it has detected a
 // terminal state, without changing the query key (so cached data is preserved).
 // includeLogs=false requests the constant-size status payload (no nested log
 // lines); log lines are then fetched incrementally per job via fetchJobLogs.
-export const useBatch = (batchId: string | null, pollingEnabled = true, includeLogs = true) => useQuery({
+export const useBatch = (
+  batchId: string | null,
+  pollingEnabled = true,
+  includeLogs = true,
+  intervalMs = 5000,
+) => useQuery({
   queryKey: ['bulk-rerun-batch', batchId, includeLogs],
   queryFn: async () => {
     const { data } = await getAuthenticatedHttpClient()
@@ -156,7 +226,7 @@ export const useBatch = (batchId: string | null, pollingEnabled = true, includeL
     if (error?.response?.status === 404) { return false; }
     return failureCount < 3;
   },
-  refetchInterval: pollingEnabled ? 5000 : false,
+  refetchInterval: pollingEnabled ? intervalMs : false,
 });
 
 const coursesUrl = (search = '') => `${studioUrl()}/api/contentstore/v1/home/courses${search}`;

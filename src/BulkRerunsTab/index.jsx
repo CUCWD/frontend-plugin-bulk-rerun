@@ -100,7 +100,10 @@ const BulkRerunsTabInner = () => {
 
   const scrollToTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth' });
 
-  const currentUser = (getAuthenticatedUser()?.email) || 'admin@example.org';
+  // Username (not email) so locally-created cards carry the same identity the
+  // server reports (created_by_username) — otherwise the same person shows up
+  // as two entries in the tracking page's user filter.
+  const currentUser = (getAuthenticatedUser()?.username) || 'admin';
 
   const queryClient = useQueryClient();
   const serverHistory = useServerHistory();

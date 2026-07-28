@@ -193,10 +193,23 @@ $hv-mono:    t.$bulk-mono;
 
 .hv-org-count--fail  { color: $hv-danger; }
 
+.hv-org-rb {
+  margin-left: auto;
+  font-size: 12px;
+  color: $hv-g400;
+  font-variant-numeric: tabular-nums;
+}
+
 .hv-org-chevron {
   margin-left: auto;
   font-size: 11px;
   color: $hv-g400;
+}
+
+// Rolled-back course rows read as "gone" — dimmed, with the target key struck
+// through inline (see HistoryOrgGroup).
+.hv-course--deleted {
+  opacity: .62;
 }
 
 // ── Course rows ───────────────────────────────────────────────────────────────
