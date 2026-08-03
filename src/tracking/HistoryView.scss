@@ -41,6 +41,79 @@ $hv-mono:    t.$bulk-mono;
   align-items: center;
 }
 
+.hv-filters {
+  margin-bottom: 16px;
+  padding: 12px 16px 16px;
+  background: $hv-g50;
+  border: 1px solid $hv-border;
+  border-radius: 4px;
+}
+
+.hv-filters-title {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: $hv-g700;
+}
+
+.hv-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.hv-filter-field {
+  min-width: 0;
+
+  label,
+  .form-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: $hv-g700;
+  }
+
+  .form-group {
+    margin-bottom: 0;
+  }
+}
+
+.hv-date-range-field,
+.hv-user-filter {
+  display: block;
+  align-self: stretch;
+
+  label {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  select {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 28px 8px 8px;
+    border: 1px solid $hv-border;
+    border-radius: 4px;
+    background: $hv-white;
+    color: $hv-g700;
+    font-size: 13px;
+  }
+}
+
+.hv-filter-field .form-control {
+  height: 38px;
+  font-size: 13px;
+}
+
+@media (width <= 900px) {
+  .hv-filter-fields { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+}
+
+@media (width <= 560px) {
+  .hv-filter-fields { grid-template-columns: 1fr; }
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 .hv-empty {
   border: 1px solid $hv-border;

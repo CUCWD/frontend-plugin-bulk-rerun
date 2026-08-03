@@ -6,7 +6,7 @@
 // or clicks View details — avoids N+1 fetches on page load.
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Button } from '@openedx/paragon';
+import { Button, Form } from '@openedx/paragon';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   fetchBatchDetail, enrichEntry, useRollbackBatch, useRollbackProgress,
@@ -15,9 +15,42 @@ import HistoryEntry from './HistoryEntry';
 import './HistoryView.scss';
 
 const ROLLBACK_TERMINAL = ['succeeded', 'partial', 'failed'];
+const DATE_RANGE_OPTIONS = [30, 60, 90];
+
+const formatDateInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDateRange = (days) => {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - days);
+  return { from: formatDateInput(from), to: formatDateInput(to) };
+};
 
 const HistoryView = ({ entries, onView, onNewRun }) => {
   const allEntries = [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const [userFilter, setUserFilter] = useState('');
+  const initialDateRange = getDateRange(30);
+  const [dateRange, setDateRange] = useState('30');
+  const [fromDate, setFromDate] = useState(initialDateRange.from);
+  const [toDate, setToDate] = useState(initialDateRange.to);
+  const [dateErrorField, setDateErrorField] = useState(null);
+  const users = [...new Set(allEntries.map(entry => entry.createdBy).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const filteredEntries = userFilter
+    ? allEntries.filter(entry => entry.createdBy === userFilter)
+    : allEntries;
+  const dateRangeInvalid = Boolean(fromDate && toDate && fromDate > toDate);
+  const dateFilteredEntries = filteredEntries.filter((entry) => {
+    const createdDate = entry.createdAt?.slice(0, 10);
+    return !dateRangeInvalid
+      && (!fromDate || createdDate >= fromDate)
+      && (!toDate || createdDate <= toDate);
+  });
 
   const queryClient = useQueryClient();
   const rollbackBatch = useRollbackBatch();
@@ -37,6 +70,42 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
   const [expandedOrg, setExpandedOrg] = useState({});
   const [enrichedMap, setEnrichedMap] = useState({});
   const [loadingIds, setLoadingIds] = useState(new Set());
+  const handleUserFilterChange = (event) => {
+    setUserFilter(event.target.value);
+    setExpandedIds(new Set());
+    setAllExpanded(false);
+  };
+
+  const handleDateRangeChange = (event) => {
+    const { value } = event.target;
+    setDateRange(value);
+    if (value !== 'custom') {
+      const dates = getDateRange(Number(value));
+      setFromDate(dates.from);
+      setToDate(dates.to);
+    }
+    setDateErrorField(null);
+    setExpandedIds(new Set());
+    setAllExpanded(false);
+  };
+
+  const handleFromDateChange = (event) => {
+    const { value } = event.target;
+    setDateRange('custom');
+    setFromDate(value);
+    setDateErrorField(value && toDate && value > toDate ? 'from' : null);
+    setExpandedIds(new Set());
+    setAllExpanded(false);
+  };
+
+  const handleToDateChange = (event) => {
+    const { value } = event.target;
+    setDateRange('custom');
+    setToDate(value);
+    setDateErrorField(fromDate && value && value < fromDate ? 'to' : null);
+    setExpandedIds(new Set());
+    setAllExpanded(false);
+  };
 
   // Track A — live summary updates. The 5 s rollback poll carries fresh per-job
   // rolled_back flags; merge them into the cached enriched entry so the
@@ -140,11 +209,11 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
       setAllExpanded(false);
     } else {
       await Promise.allSettled(
-        allEntries
+        dateFilteredEntries
           .filter(e => e.batchId && !enrichedMap[e.batchId] && !(e.jobs?.length > 0))
           .map(e => getEnriched(e)),
       );
-      setExpandedIds(new Set(allEntries.map(e => e.id)));
+      setExpandedIds(new Set(dateFilteredEntries.map(e => e.id)));
       setAllExpanded(true);
     }
   };
@@ -155,11 +224,11 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
         <div>
           <div className="hv-header-title">Run History</div>
           <div className="hv-header-subtitle">
-            {`${allEntries.length} bulk run${allEntries.length !== 1 ? 's' : ''} on record - sorted newest first`}
+            {`${dateFilteredEntries.length} bulk run${dateFilteredEntries.length !== 1 ? 's' : ''} on record - sorted newest first`}
           </div>
         </div>
         <div className="hv-header-actions">
-          {allEntries.length > 0 && (
+          {dateFilteredEntries.length > 0 && (
             <Button variant="outline-primary" onClick={toggleAll}>
               {allExpanded ? 'Collapse All Summary' : 'Expand All Summary'}
             </Button>
@@ -168,18 +237,92 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
         </div>
       </div>
 
-      {allEntries.length === 0 && (
+      <div className="hv-filters">
+        <div className="hv-filters-title">Advanced Search Options:</div>
+        <div className="hv-filter-fields">
+          <div className="hv-filter-field hv-date-range-field">
+            <label htmlFor="history-date-range">Date Range</label>
+            <select
+              id="history-date-range"
+              value={dateRange}
+              onChange={handleDateRangeChange}
+            >
+              {DATE_RANGE_OPTIONS.map(days => (
+                <option key={days} value={days}>{`${days} Days`}</option>
+              ))}
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div className="hv-filter-field">
+            <Form.Group
+              controlId="history-from-date"
+              isInvalid={dateRangeInvalid && dateErrorField === 'from'}
+            >
+              <Form.Label>From Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={fromDate}
+                max={toDate}
+                onChange={handleFromDateChange}
+              />
+              {dateRangeInvalid && dateErrorField === 'from' && (
+                <Form.Control.Feedback type="invalid">
+                  From Date must be on or before To Date.
+                </Form.Control.Feedback>
+              )}
+            </Form.Group>
+          </div>
+          <div className="hv-filter-field">
+            <Form.Group
+              controlId="history-to-date"
+              isInvalid={dateRangeInvalid && dateErrorField === 'to'}
+            >
+              <Form.Label>To Date</Form.Label>
+              <Form.Control
+                type="date"
+                value={toDate}
+                min={fromDate}
+                onChange={handleToDateChange}
+              />
+              {dateRangeInvalid && dateErrorField === 'to' && (
+                <Form.Control.Feedback type="invalid">
+                  To Date must be on or after From Date.
+                </Form.Control.Feedback>
+              )}
+            </Form.Group>
+          </div>
+          {users.length > 0 && (
+            <div className="hv-filter-field hv-user-filter">
+              <label htmlFor="history-user-filter">Filter by user</label>
+              <select
+                id="history-user-filter"
+                value={userFilter}
+                onChange={handleUserFilterChange}
+              >
+                <option value="">All users</option>
+                {users.map(user => <option key={user} value={user}>{user}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {!dateRangeInvalid && dateFilteredEntries.length === 0 && (
         <div className="hv-empty">
           <div className="hv-empty-inner">
             <div className="hv-empty-icon">📋</div>
-            <div className="hv-empty-title">No runs yet</div>
-            <div className="hv-empty-desc">Completed bulk runs will appear here automatically.</div>
+            <div className="hv-empty-title">{allEntries.length > 0 ? 'No runs match the selected filters' : 'No runs yet'}</div>
+            <div className="hv-empty-desc">
+              {allEntries.length > 0
+                ? 'Try adjusting the date range or user filter.'
+                : 'Completed bulk runs will appear here automatically.'}
+            </div>
             <Button variant="primary" onClick={onNewRun}>Start first bulk run</Button>
           </div>
         </div>
       )}
 
-      {allEntries.map(entry => {
+      {dateFilteredEntries.map(entry => {
         const displayEntry = enrichedMap[entry.batchId] || entry;
         return (
           <HistoryEntry
@@ -206,6 +349,7 @@ HistoryView.propTypes = {
     id: PropTypes.string,
     batchId: PropTypes.string,
     createdAt: PropTypes.string,
+    createdBy: PropTypes.string,
     status: PropTypes.string,
     jobs: PropTypes.arrayOf(PropTypes.shape({})),
   })).isRequired,
