@@ -18,6 +18,12 @@ const ROLLBACK_TERMINAL = ['succeeded', 'partial', 'failed'];
 
 const HistoryView = ({ entries, onView, onNewRun }) => {
   const allEntries = [...entries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const [userFilter, setUserFilter] = useState('');
+  const users = [...new Set(allEntries.map(entry => entry.createdBy).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const filteredEntries = userFilter
+    ? allEntries.filter(entry => entry.createdBy === userFilter)
+    : allEntries;
 
   const queryClient = useQueryClient();
   const rollbackBatch = useRollbackBatch();
@@ -37,6 +43,11 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
   const [expandedOrg, setExpandedOrg] = useState({});
   const [enrichedMap, setEnrichedMap] = useState({});
   const [loadingIds, setLoadingIds] = useState(new Set());
+  const handleUserFilterChange = (event) => {
+    setUserFilter(event.target.value);
+    setExpandedIds(new Set());
+    setAllExpanded(false);
+  };
 
   // Track A — live summary updates. The 5 s rollback poll carries fresh per-job
   // rolled_back flags; merge them into the cached enriched entry so the
@@ -140,11 +151,11 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
       setAllExpanded(false);
     } else {
       await Promise.allSettled(
-        allEntries
+        filteredEntries
           .filter(e => e.batchId && !enrichedMap[e.batchId] && !(e.jobs?.length > 0))
           .map(e => getEnriched(e)),
       );
-      setExpandedIds(new Set(allEntries.map(e => e.id)));
+      setExpandedIds(new Set(filteredEntries.map(e => e.id)));
       setAllExpanded(true);
     }
   };
@@ -155,11 +166,24 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
         <div>
           <div className="hv-header-title">Run History</div>
           <div className="hv-header-subtitle">
-            {`${allEntries.length} bulk run${allEntries.length !== 1 ? 's' : ''} on record - sorted newest first`}
+            {`${filteredEntries.length} bulk run${filteredEntries.length !== 1 ? 's' : ''} on record - sorted newest first`}
           </div>
         </div>
+        {users.length > 0 && (
+          <div className="hv-user-filter">
+            <label htmlFor="history-user-filter">Filter by user</label>
+            <select
+              id="history-user-filter"
+              value={userFilter}
+              onChange={handleUserFilterChange}
+            >
+              <option value="">All users</option>
+              {users.map(user => <option key={user} value={user}>{user}</option>)}
+            </select>
+          </div>
+        )}
         <div className="hv-header-actions">
-          {allEntries.length > 0 && (
+          {filteredEntries.length > 0 && (
             <Button variant="outline-primary" onClick={toggleAll}>
               {allExpanded ? 'Collapse All Summary' : 'Expand All Summary'}
             </Button>
@@ -168,7 +192,7 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
         </div>
       </div>
 
-      {allEntries.length === 0 && (
+      {filteredEntries.length === 0 && (
         <div className="hv-empty">
           <div className="hv-empty-inner">
             <div className="hv-empty-icon">📋</div>
@@ -179,7 +203,7 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
         </div>
       )}
 
-      {allEntries.map(entry => {
+      {filteredEntries.map(entry => {
         const displayEntry = enrichedMap[entry.batchId] || entry;
         return (
           <HistoryEntry
@@ -206,6 +230,7 @@ HistoryView.propTypes = {
     id: PropTypes.string,
     batchId: PropTypes.string,
     createdAt: PropTypes.string,
+    createdBy: PropTypes.string,
     status: PropTypes.string,
     jobs: PropTypes.arrayOf(PropTypes.shape({})),
   })).isRequired,
