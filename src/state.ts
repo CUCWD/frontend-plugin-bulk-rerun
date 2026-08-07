@@ -21,6 +21,7 @@ export type ActiveJob = {
   createdBy: string;
   done?: boolean; // set when the batch reaches a terminal state; the card stays
   //                 visible until dismissed but no longer counts as "active"
+  rollbackRequested?: boolean; // rollback is a one-shot action for a batch
 };
 
 export type HistoryEntry = {
@@ -155,6 +156,13 @@ export const useBulkRerunState = () => {
     markActiveJobDone: (id: string) => {
       g.activeJobs.set(
         (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(j => (j.id === id ? { ...j, done: true } : j)),
+      );
+    },
+    markActiveJobRollbackRequested: (id: string) => {
+      g.activeJobs.set(
+        (g.activeJobs.get({ noproxy: true }) as ActiveJob[]).map(
+          j => (j.id === id ? { ...j, rollbackRequested: true } : j),
+        ),
       );
     },
     flipActiveJobDry: (id: string) => {

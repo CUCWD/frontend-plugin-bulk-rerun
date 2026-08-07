@@ -9,7 +9,7 @@ import PropTypes from 'prop-types';
 import { Button, Form } from '@openedx/paragon';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  fetchBatchDetail, enrichEntry, useRollbackBatch, useRollbackProgress,
+  fetchBatchDetail, enrichEntry, useRollbackProgress,
 } from '../hooks';
 import HistoryEntry from './HistoryEntry';
 import './HistoryView.scss';
@@ -53,7 +53,6 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
   });
 
   const queryClient = useQueryClient();
-  const rollbackBatch = useRollbackBatch();
 
   // Poll ONLY the batches with a rollback in flight (constant-size detail
   // endpoint) rather than re-fetching the whole history list every tick.
@@ -143,31 +142,6 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rollbackProgress.data]);
-
-  // Fire the rollback. Optimistically flip this batch to a rolling-back state
-  // right away — both in the history-list cache (so inFlightIds picks it up and
-  // polling starts immediately, and the badge flips) and in enrichedMap (so an
-  // expanded entry's per-course chips react on click) — before the server
-  // round-trip. The 2 s poll then confirms/corrects. A final list refetch settles
-  // the terminal state.
-  const handleRollback = async (entry) => {
-    if (!entry.batchId) { return; }
-    const id = entry.batchId;
-    queryClient.setQueryData(['bulk-rerun-history'], old => (Array.isArray(old)
-      ? old.map(e => (e.batchId === id ? { ...e, rollbackStatus: 'pending' } : e))
-      : old));
-    setEnrichedMap(prev => (prev[id]
-      ? { ...prev, [id]: { ...prev[id], rollbackStatus: 'pending' } }
-      : prev));
-    try {
-      await rollbackBatch.mutateAsync(id);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('[BulkRerun] Rollback request failed for', id, e?.response?.data || e);
-    } finally {
-      queryClient.invalidateQueries({ queryKey: ['bulk-rerun-history'] });
-    }
-  };
 
   const getEnriched = async (entry) => {
     if (!entry.batchId) { return entry; }
@@ -335,8 +309,6 @@ const HistoryView = ({ entries, onView, onNewRun }) => {
             setExpandedOrg={setExpandedOrg}
             onView={handleView}
             getEnriched={getEnriched}
-            onRollback={handleRollback}
-            isRollbackPending={rollbackBatch.isPending}
           />
         );
       })}
