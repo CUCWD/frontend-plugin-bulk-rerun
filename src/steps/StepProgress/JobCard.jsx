@@ -12,6 +12,9 @@ const JobCard = ({
   isExecuting,
   cancelPending,
   onCancel,
+  rollbackPending,
+  rollbackRequested,
+  onRollback,
   onDismiss,
   onSaveHistory,
   onComplete,
@@ -72,6 +75,26 @@ const JobCard = ({
             Stop
           </Button>
         )}
+        {isCompleted && !job.isDry && job.batchId && (
+          <Button
+            variant="outline-danger"
+            size="sm"
+            disabled={rollbackPending || rollbackRequested}
+            onClick={e => {
+              e.stopPropagation();
+              // eslint-disable-next-line no-alert
+              if (!window.confirm(
+                'Roll back this bulk run?\n\n'
+                + 'Courses created by this batch will be PERMANENTLY DELETED, '
+                + 'including any content added since. Courses that existed before '
+                + 'the batch are never touched.\n\nThis cannot be undone.',
+              )) { return; }
+              onRollback();
+            }}
+          >
+            Rollback
+          </Button>
+        )}
         <Button
           variant="tertiary"
           size="sm"
@@ -98,6 +121,7 @@ const JobCard = ({
           isDryRun={job.isDry}
           createdBy={job.createdBy}
           createdAt={job.createdAt}
+          rollbackRequested={rollbackRequested}
           onSaveHistory={onSaveHistory}
           onComplete={onComplete}
           onNew={onNew}
@@ -124,6 +148,9 @@ JobCard.propTypes = {
   isExecuting: PropTypes.bool.isRequired,
   cancelPending: PropTypes.bool.isRequired,
   onCancel: PropTypes.func.isRequired,
+  rollbackPending: PropTypes.bool.isRequired,
+  rollbackRequested: PropTypes.bool.isRequired,
+  onRollback: PropTypes.func.isRequired,
   onDismiss: PropTypes.func.isRequired,
   onSaveHistory: PropTypes.func.isRequired,
   onComplete: PropTypes.func.isRequired,

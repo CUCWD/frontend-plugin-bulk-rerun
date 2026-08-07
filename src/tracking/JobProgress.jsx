@@ -128,6 +128,7 @@ const JobProgress = ({
   isDryRun,
   createdBy,
   createdAt,
+  rollbackRequested,
   historyEntry,
   onSaveHistory,
   onComplete,
@@ -255,19 +256,29 @@ const JobProgress = ({
     setPhase,
   });
 
-  // ── Track B — live rollback in the History detail view ────────────────────
-  // viewingEntry is a one-time snapshot and useBatchSync is off in history mode,
-  // so while a rollback is in flight we poll the FULL batch detail ourselves
+  // ── Track B — live rollback progress ──────────────────────────────────────
+  // The regular status poll does not provide rollback log updates quickly
+  // enough, so while a rollback is in flight we poll the FULL batch detail
+  // ourselves
   // (include_logs=true) and sync each job's rolled_back AND its log lines onto
   // courseItems — so both the chips and the rollback log tail stream live. The
   // rollback window is short, so the heavier payload is bounded. liveRollback
   // holds the latest detail so rollbackStatus is stable once polling stops.
   const [liveRollback, setLiveRollback] = useState(null);
-  const rollbackStatus = liveRollback?.rollback_status || historyEntry?.rollbackStatus || 'none';
+  const fetchedRollbackStatus = liveRollback?.rollback_status
+    || batchQuery.data?.rollback_status
+    || historyEntry?.rollbackStatus
+    || 'none';
+  // The normal Current-tab query is usually still cached with
+  // rollback_status="none" when the button is clicked. Treat that snapshot as
+  // stale so the dedicated rollback poll starts immediately.
+  const rollbackStatus = rollbackRequested && fetchedRollbackStatus === 'none'
+    ? 'pending'
+    : fetchedRollbackStatus;
   const rbInFlight = rollbackStatus === 'pending' || rollbackStatus === 'running';
   // 1 s interval (vs the 5 s default) so the rollback chips + log tail advance
   // step by step with the backend's ~0.75 s pacing; only runs while in flight.
-  const rollbackPoll = useBatch(batchId, !!(historyEntry && batchId && rbInFlight), true, 1000);
+  const rollbackPoll = useBatch(batchId, !!(batchId && rbInFlight), true, 1000);
 
   useEffect(() => {
     const detail = rollbackPoll.data;
@@ -291,6 +302,18 @@ const JobProgress = ({
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rollbackPoll.data]);
+
+  // Give the Current tab immediate feedback while the rollback request is
+  // being accepted. The next detail poll replaces this marker with the
+  // backend's real rollback log lines.
+  useEffect(() => {
+    if (!rollbackRequested) { return; }
+    setCourseItems(prev => prev.map(item => (
+      item.logs.some(log => log.msg === 'Rollback requested.')
+        ? item
+        : { ...item, logs: [...item.logs, { lv: 'warn', ts: '--', msg: 'Rollback requested.' }] }
+    )));
+  }, [rollbackRequested]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const batchDone = isRealMode
     ? !!batchQuery.data && (
@@ -430,7 +453,7 @@ const JobProgress = ({
     return '#c8c8c8';
   };
 
-  // ── Rollback display state (History detail view) ──────────────────────────
+  // ── Rollback display state ─────────────────────────────────────────────────
   // rollbackStatus / rbInFlight are derived above (Track B) from the live poll,
   // falling back to the viewingEntry snapshot. The counts below read courseItems,
   // which the Track B sync effect keeps current, so tile/phase/chips advance live.
@@ -444,9 +467,8 @@ const JobProgress = ({
   const ROLLBACK_PILL = {
     pending: { label: 'ROLLING BACK…', variant: 'primary' },
     running: { label: 'ROLLING BACK…', variant: 'primary' },
-    // bg overrides the Paragon variant so ROLLED BACK uses the app blue
-    // (#006daa) rather than near-black, matching the rollback tile/phase.
-    succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
+    // bg overrides the Paragon variant so ROLLED BACK uses the app danger red.
+    succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#C32D3A' },
     partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
     failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
   };
@@ -684,6 +706,7 @@ JobProgress.propTypes = {
   isDryRun: PropTypes.bool,
   createdBy: PropTypes.string,
   createdAt: PropTypes.string,
+  rollbackRequested: PropTypes.bool,
   historyEntry: historyEntryPropType,
   onSaveHistory: PropTypes.func,
   onComplete: PropTypes.func,
@@ -698,6 +721,7 @@ JobProgress.defaultProps = {
   isDryRun: false,
   createdBy: null,
   createdAt: null,
+  rollbackRequested: false,
   historyEntry: null,
   onSaveHistory: null,
   onComplete: null,

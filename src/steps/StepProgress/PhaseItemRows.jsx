@@ -64,7 +64,8 @@ const PhaseItem = ({ item, rollbackStatus, deletingId }) => {
   // sees live output without having to click. Once opened this way the row
   // stays expanded through completion; the user can still manually toggle it.
   useEffect(() => {
-    if (!autoOpenedRef.current && (item.status === 'running' || item.status === 'failed')) {
+    const rollbackStarted = item.logs.some(log => (log.msg || '').startsWith('Rollback'));
+    if (!autoOpenedRef.current && (item.status === 'running' || item.status === 'failed' || rollbackStarted)) {
       autoOpenedRef.current = true;
       setIsOpen(true);
     }
@@ -128,7 +129,7 @@ const PhaseItem = ({ item, rollbackStatus, deletingId }) => {
     <div className="pi-item">
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className="pi-row" onClick={() => setIsOpen(o => !o)}>
-        <div className="pi-label">{label}</div>
+        <div className="pi-label" style={rbDeleted ? { textDecoration: 'line-through' } : undefined}>{label}</div>
         {sublabel && (
           <div className="pi-sublabel" style={rbDeleted ? { textDecoration: 'line-through' } : undefined}>{sublabel}</div>
         )}

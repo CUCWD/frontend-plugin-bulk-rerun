@@ -32,16 +32,14 @@ function orgGroups(entry) {
 
 // Rollback badge label per terminal rollback_status value.
 const ROLLBACK_BADGE = {
-  // bg overrides the Paragon variant so ROLLED BACK uses the app blue (#006daa)
-  // rather than near-black, matching the rest of the program's blue.
-  succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#006daa' },
+  // bg overrides the Paragon variant so ROLLED BACK uses the app danger red.
+  succeeded: { label: 'ROLLED BACK', variant: 'dark', bg: '#C32D3A' },
   partial: { label: 'ROLLBACK PARTIAL', variant: 'warning' },
   failed: { label: 'ROLLBACK FAILED', variant: 'danger' },
 };
 
 const HistoryEntry = ({
   entry, isOpen, onToggle, expandedOrg, setExpandedOrg, onView, isLoadingDetail, getEnriched,
-  onRollback, isRollbackPending,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -78,22 +76,6 @@ const HistoryEntry = ({
   // unless a rollback is actively running. entry.jobs is in position order.
   const deletingId = deletingJobId(jobs, rollbackStatus);
   const rollbackBadge = ROLLBACK_BADGE[rollbackStatus];
-  const canRollback = rollbackStatus === 'none'
-    && !entry.isDryRun
-    && (entry.createdCourses || 0) > 0
-    && !!entry.batchId;
-
-  const confirmRollback = () => {
-    const n = entry.createdCourses;
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(
-      `Roll back this bulk run?\n\nThe ${n} course${n !== 1 ? 's' : ''} created by this batch `
-      + 'will be PERMANENTLY DELETED, including any content added since. '
-      + 'Courses that existed before the batch are never touched.\n\nThis cannot be undone.',
-    )) { return; }
-    onRollback(entry);
-  };
-
   return (
     <div className="hv-entry">
       <div className="hv-entry-row">
@@ -148,22 +130,12 @@ const HistoryEntry = ({
           >
             {copied ? 'Copied!' : 'Export report'}
           </Button>
-          <Button variant="outline-primary" size="sm" onClick={() => onView(entry)} disabled={isLoadingDetail}>
-            {isLoadingDetail ? 'Loading…' : 'View details'}
-          </Button>
           <Button variant="outline-primary" size="sm" onClick={onToggle} disabled={isLoadingDetail}>
             {isOpen ? 'Hide' : 'Summary'}
           </Button>
-          {canRollback && (
-            <Button
-              variant="outline-danger"
-              size="sm"
-              disabled={isRollbackPending}
-              onClick={confirmRollback}
-            >
-              Rollback
-            </Button>
-          )}
+          <Button variant="outline-primary" size="sm" onClick={() => onView(entry)} disabled={isLoadingDetail}>
+            {isLoadingDetail ? 'Loading…' : 'View details'}
+          </Button>
         </div>
       </div>
 
@@ -214,13 +186,10 @@ HistoryEntry.propTypes = {
   onView: PropTypes.func.isRequired,
   isLoadingDetail: PropTypes.bool,
   getEnriched: PropTypes.func.isRequired,
-  onRollback: PropTypes.func.isRequired,
-  isRollbackPending: PropTypes.bool,
 };
 
 HistoryEntry.defaultProps = {
   isLoadingDetail: false,
-  isRollbackPending: false,
 };
 
 export default HistoryEntry;

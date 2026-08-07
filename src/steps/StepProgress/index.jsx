@@ -10,7 +10,9 @@ import { useState, useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Button } from '@openedx/paragon';
 
-import { useCreateBatch, useCancelBatch, useRunningBatches } from '../../hooks';
+import {
+  useCreateBatch, useCancelBatch, useRollbackBatch, useRunningBatches,
+} from '../../hooks';
 import { buildBatchPayload } from '../../utils/batchPayload';
 import { useBulkRerunState } from '../../state';
 import EmptyState from './EmptyState';
@@ -24,6 +26,7 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
     addActiveJobs,
     removeActiveJob,
     markActiveJobDone,
+    markActiveJobRollbackRequested,
     promoteJobToReal,
     jobsExpanded,
     toggleJobExpanded,
@@ -35,11 +38,13 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
 
   const createBatch = useCreateBatch();
   const cancelBatch = useCancelBatch();
+  const rollbackBatch = useRollbackBatch();
   // Tracks job IDs currently being promoted from dry-run to real so we can
   // show a pending state on the card while the POST /batches/ is in flight.
   // Terminal state lives on the job itself (job.done, see markActiveJobDone)
   // so counts and the Dismiss button survive navigating away and back.
   const [executingIds, setExecutingIds] = useState(new Set());
+  const [rollbackIds, setRollbackIds] = useState(new Set());
 
   // Merge server-side in-flight batches into local state on every poll result.
   // This handles page refresh, cross-tab/device access, AND batches started by
@@ -90,6 +95,20 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promoteJobToReal]);
 
+  const handleRollback = useCallback((job) => {
+    setRollbackIds(prev => new Set([...prev, job.id]));
+    markActiveJobRollbackRequested(job.id);
+    rollbackBatch.mutate(job.batchId, {
+      onError: () => {
+        setRollbackIds((prev) => {
+          const next = new Set(prev);
+          next.delete(job.id);
+          return next;
+        });
+      },
+    });
+  }, [markActiveJobRollbackRequested, rollbackBatch]);
+
   const visibleJobs = jobUserFilter
     ? activeJobs.filter(j => j.createdBy === jobUserFilter)
     : activeJobs;
@@ -132,6 +151,9 @@ const StepProgress = ({ onGoWizard, onSaveHistory }) => {
             isExecuting={executingIds.has(job.id)}
             cancelPending={cancelBatch.isPending}
             onCancel={() => cancelBatch.mutate(job.batchId)}
+            rollbackPending={rollbackBatch.isPending}
+            rollbackRequested={!!job.rollbackRequested || rollbackIds.has(job.id)}
+            onRollback={() => handleRollback(job)}
             onDismiss={() => removeActiveJob(job.id)}
             onSaveHistory={onSaveHistory}
             onComplete={() => markActiveJobDone(job.id)}

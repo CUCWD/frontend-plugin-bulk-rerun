@@ -107,7 +107,16 @@ const useBatchSync = ({
           }]
           : item.logs;
         return {
-          ...item, status: apiStatus, jobId: job.id, elapsed, logs,
+          ...item,
+          status: apiStatus,
+          jobId: job.id,
+          elapsed,
+          logs,
+          // These flags are present even in the lightweight detail response.
+          // Keep them on Current-tab rows before rollback starts so the
+          // optimistic rollback state can render the correct per-course chips.
+          courseCreated: job.course_created == null ? item.courseCreated : !!job.course_created,
+          rolledBack: job.rolled_back == null ? item.rolledBack : !!job.rolled_back,
         };
       }));
     }
