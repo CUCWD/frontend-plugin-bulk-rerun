@@ -1,6 +1,6 @@
 {
   "name": "@cucwd/frontend-plugin-bulk-rerun",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "src/index.tsx",
   "description": "Frontend plugin bulk rerun",
   "repository": {
