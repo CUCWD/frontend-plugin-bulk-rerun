@@ -13,6 +13,18 @@ precommit:
 requirements:
 	npm ci
 
+clean-package:
+	rm -rf dist
+
+build-package:
+	npm exec -- tsc --project tsconfig.build.json
+	find src -type f ! -path 'src/example/*' ! -name '.gitkeep' \( -name '*.scss' -o -path '*/assets/*' \) -exec sh -c '\
+	  for f in "$$@"; do \
+	    d="dist/$${f#src/}"; \
+	    mkdir -p "$$(dirname "$$d")"; \
+	    cp "$$f" "$$d"; \
+	  done' sh {} +
+
 i18n.extract:
 	# Pulling display strings from .jsx files into .json files...
 	rm -rf $(transifex_temp)
@@ -41,4 +53,3 @@ pull_translations:
 	            translations/frontend-plugin-bulk-rerun/src/i18n/messages:frontend-plugin-bulk-rerun
 
 	$(intl_imports) frontend-platform paragon frontend-component-header frontend-component-footer frontend-plugin-bulk-rerun
-

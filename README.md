@@ -297,8 +297,9 @@ npm pack --dry-run
 npm publish --access public --registry=https://registry.npmjs.org/
 ```
 
-Review the packaging dry run's file listing for `src/index.tsx`, the plugin
-components, required styles, and assets before publishing. The final command
+The packaging dry run invokes `prepack` to clean and compile `dist/`. Review
+its file listing for `dist/index.js`, the plugin components, required styles,
+and assets before publishing. The final command
 creates the public organization package on npmjs. This manual step does not
 require an npm automation token stored in GitHub Actions.
 
